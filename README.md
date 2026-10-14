@@ -181,6 +181,12 @@ For the Codex panel, the switcher edits exactly one file: `~/.codex/config.toml`
 
 The switcher does not edit `~/.claude/settings.json`, workspace files, terminal settings, permission modes, or Claude's installed files. Conflicting workspace settings and custom process wrappers are reported before changing providers. Failed updates attempt to restore the previous settings.
 
+### Claude's own defaults
+
+DeepSeek documents an environment block for the CLI — `ANTHROPIC_BASE_URL`, the model roles, `CLAUDE_CODE_EFFORT_LEVEL` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. There is no equivalent block for Claude's defaults, and none can exist: only `ANTHROPIC_BASE_URL` has a documented default (`https://api.anthropic.com`, which Claude Code uses when the variable is unset), while the model roles, effort level, and compaction window are defaults of the installed version. Writing them out would pin you to whichever models shipped the day you wrote it.
+
+So "Claude defaults" is expressed by having none of those variables, which is what choosing **Claude** does. It restores the settings saved before the first switch, and on an install that never set them it removes `claudeCode.environmentVariables` instead of writing a value back. The equivalent outside the panel is simply not exporting them, or removing them from `~/.claude/settings.json`, which this switcher never edits.
+
 ## Credentials and privacy
 
 - Preset API keys and the original configuration backups use VS Code SecretStorage. **One key is stored per endpoint host and shared by every preset that uses it, on both sides**, so the DeepSeek key you enter for the panel is also what Codex uses. Keys saved by earlier builds were kept per preset; the switcher adopts them under the shared name the first time a preset uses one.
