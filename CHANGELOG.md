@@ -2,6 +2,10 @@
 
 All notable changes to **Provider Switcher** will be documented here.
 
+## [0.3.2] - 2026-10-14
+
+- Correct the publisher ID to `jacr13` (`jacr13.provider-switcher`).
+
 ## [0.3.1] - 2026-10-14
 
 - Use the custom Provider Switcher logo as the extension icon.
