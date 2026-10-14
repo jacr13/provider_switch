@@ -2,6 +2,12 @@
 
 All notable changes to **Provider Switcher** will be documented here.
 
+## [0.3.1] - 2026-10-14
+
+- Use the custom Provider Switcher logo as the extension icon.
+- Remove the unused switch SVG.
+- Simplify release download instructions and build VSIX packages with GitHub Actions.
+
 ## [0.3.0] - 2026-10-14
 
 - Keep the panel's previous settings in a file next to Codex's copy, keep the Codex copy in both locations so either survives losing the other, and adopt whichever file is found when secret storage is empty, so reinstalling can switch both sides back instead of only offering to detach.
