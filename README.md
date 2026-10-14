@@ -181,7 +181,7 @@ The switcher does not edit `~/.claude/settings.json`, workspace files, terminal 
 
 ## Status indicator
 
-Both buttons name their target, so a glance tells them apart: the panel reads **Claude: DeepSeek** and the Codex button **Codex: DeepSeek Flash**. The panel shows its preset label when the environment matches the current configuration; changed, removed, or ambiguous preset definitions show **Claude: Custom** for non-Anthropic endpoints until you reselect a matching preset.
+Both buttons name their target before the model — **Claude: DeepSeek**, **Codex: DeepSeek Flash** — and the target label is a status bar item of its own. VS Code colors a whole item at once, so the label keeps the theme color while the icon and model name take the preset color; there is a small gap between the two because they are separate items, and both halves open the same picker. The panel shows its preset label when the environment matches the current configuration; changed, removed, or ambiguous preset definitions show **Claude: Custom** for non-Anthropic endpoints until you reselect a matching preset.
 
 The Codex button behaves the same way against the configuration file: it shows the preset whose model, provider, and endpoint match, **Codex: Custom** when the file points elsewhere, and **Codex: ChatGPT** when no custom provider is selected. It is hidden entirely on machines where Codex has never run and the Codex extension is not installed.
 
@@ -191,7 +191,7 @@ The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `src/deepseek-rat
 
 Set `providerSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button. Settings from earlier versions of the extension, such as `claudeCodeSwitcher.statusBarAlignment`, are no longer read.
 
-Claude uses orange and DeepSeek uses purple for the status bar text and icon. Customize colors by preset ID in `providerSwitcher.statusBarColors`:
+Claude uses orange and DeepSeek uses purple for the status bar icon and model name. Customize colors by preset ID in `providerSwitcher.statusBarColors`:
 
 ```json
 {

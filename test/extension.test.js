@@ -34,8 +34,8 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   const hooks = {};
   const window = {
     createOutputChannel: () => ({ appendLine: line => outputLines.push(line), dispose() {} }),
-    createStatusBarItem: () => {
-      const created = { shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
+    createStatusBarItem: (id, alignment, priority) => {
+      const created = { id, alignment, priority, shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
       statusItems.push(created);
       return created;
     },
@@ -101,6 +101,7 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   return {
     values, writes, commands, window, events, secret, messages, executed, hooks, home, outputLines,
     item: statusItems[0], codexItem: statusItems[1],
+    itemLabel: statusItems[2], codexItemLabel: statusItems[3],
     read: () => fs.readFileSync(path.join(home, 'config.toml'), 'utf8'),
     env: () => Object.fromEntries((values.environmentVariables || []).map(entry => [entry.name, entry.value])),
     switch: async model => { window.showQuickPick = async () => ({ model }); await commands['provider-switcher.switchModel'](); },
@@ -134,7 +135,7 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().CUSTOM, 'keep');
   assert.equal(app.values.disableLoginPrompt, true);
   assert.equal(app.values.useTerminal, false);
-  assert.ok(app.item.text.startsWith('\u{1F433} Claude: DeepSeek'), app.item.text);
+  assert.ok(app.item.text.startsWith('\u{1F433} DeepSeek'), app.item.text);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
 });
@@ -146,16 +147,37 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   // The rate depends on the clock, so only its compact shape is fixed here.
   const suffix = '( \\| (Low|High|Rate unknown))?';
   const whale = '\u{1F433}';
-  assert.match(app.item.text, new RegExp(`^${whale} Claude: DeepSeek${suffix}$`));
-  assert.match(app.codexItem.text, new RegExp(`^${whale} Codex: DeepSeek Flash${suffix}$`));
+  assert.match(app.item.text, new RegExp(`^${whale} DeepSeek${suffix}$`));
+  assert.match(app.codexItem.text, new RegExp(`^${whale} DeepSeek Flash${suffix}$`));
   assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
 
   // Another endpoint keeps the rocket and gets no rate suffix at all.
   const local = await setup({ presets: { local: localPreset } });
   await local.switch('local');
-  assert.equal(local.item.text, '$(rocket) Claude: Local model');
+  assert.equal(local.item.text, '$(rocket) Local model');
   // Restored configurations carry the service's own mark.
-  assert.equal(local.codexItem.text, '\u{1F338} Codex: ChatGPT');
+  assert.equal(local.codexItem.text, '\u{1F338} ChatGPT');
+});
+
+test('the target label is a separate uncolored item ahead of the model name', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  await app.switch('deepseek');
+  await app.switchCodex('deepseek-flash');
+  assert.equal(app.itemLabel.text, 'Claude:');
+  assert.equal(app.codexItemLabel.text, 'Codex:');
+  // The theme colors the label: it carries no color of its own.
+  assert.equal(app.itemLabel.color, undefined);
+  assert.equal(app.codexItemLabel.color, undefined);
+  // Higher priority is further left, so each label precedes its model name and
+  // the two targets stay in their own groups.
+  assert.ok(app.itemLabel.priority > app.item.priority);
+  assert.ok(app.item.priority > app.codexItemLabel.priority);
+  assert.ok(app.codexItemLabel.priority > app.codexItem.priority);
+  // The preset color stayed on the model name, and both halves switch the same.
+  assert.equal(app.item.color, '#a78bfa');
+  assert.equal(app.codexItem.color, '#a78bfa');
+  assert.equal(app.itemLabel.command, app.item.command);
+  assert.equal(app.codexItemLabel.command, app.codexItem.command);
 });
 
 test('Claude restores credentials and login settings, retaining unrelated edits', async () => {
@@ -265,7 +287,7 @@ test('external provider without a backup is not erased or mislabeled as Claude',
   const app = await setup({ initial: { environmentVariables: [{ name: 'ANTHROPIC_BASE_URL', value: 'https://custom.example' }] } });
   await app.switch('claude');
   assert.equal(app.writes.length, 0);
-  assert.match(app.item.text, /Claude: Custom/);
+  assert.match(app.item.text, /Custom/);
   assert.match(app.messages[0], /no saved Claude configuration/);
 });
 
@@ -342,7 +364,7 @@ test('changed preset values apply only on reselection and status reflects actual
   assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
   presets.deepseek.environment.ANTHROPIC_MODEL = 'second-model';
   app.events.config({ affectsConfiguration: section => section === 'providerSwitcher' });
-  assert.match(app.item.text, /Claude: Custom/);
+  assert.match(app.item.text, /Custom/);
   assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
   await app.switch('deepseek');
   assert.equal(app.env().ANTHROPIC_MODEL, 'second-model');
@@ -474,7 +496,7 @@ trust_level = "trusted"
 test('Codex preset rewrites config.toml, keeps unrelated settings, and installs the catalog', async () => {
   const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
   app.window.showInputBox = async () => ' sk-codex ';
-  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+  assert.match(app.codexItem.text, /ChatGPT/);
   await app.switchCodex('deepseek-v4-pro');
   const written = app.read();
   assert.match(written, /^model = "deepseek-v4-pro"$/m);
@@ -489,7 +511,7 @@ test('Codex preset rewrites config.toml, keeps unrelated settings, and installs 
   assert.ok(fs.existsSync(path.join(app.home, 'models.json')));
   assert.equal(JSON.parse(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8')).models.length, 2);
   assert.ok(app.secret.has(CODEX_BACKUP));
-  assert.match(app.codexItem.text, /Codex: DeepSeek V4 Pro/);
+  assert.match(app.codexItem.text, /DeepSeek V4 Pro/);
   assert.equal(app.writes.length, 0);
   // Adjustments are reported without echoing removed values.
   assert.ok(app.outputLines.some(line => line.includes('Codex -> DeepSeek V4 Pro')));
@@ -507,7 +529,7 @@ test('an existing Codex catalog is never overwritten and survives restore', asyn
   assert.equal(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8'), original);
   assert.ok(!app.secret.has(CODEX_BACKUP));
   assert.equal(app.read(), codexFixture);
-  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+  assert.match(app.codexItem.text, /ChatGPT/);
 });
 
 test('Codex restore returns the exact original file and removes only its own catalog', async () => {
@@ -546,7 +568,7 @@ test('the copy is kept on activation, before anything switches', async () => {
   assert.equal(fs.readFileSync(path.join(app.home, 'backup-provider-switcher', 'config.toml'), 'utf8'), codexFixture);
   // Activation still writes no settings of its own.
   assert.equal(app.writes.length, 0);
-  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+  assert.match(app.codexItem.text, /ChatGPT/);
 
   // A Codex home without a configuration file has nothing to copy.
   const bare = await setup({ secret: new Map() });
@@ -586,6 +608,7 @@ test('Codex guards prevent writes and report once', async () => {
   // A machine that never ran Codex gets no Codex status entry.
   const absent = await setup({ codexInstalled: false });
   assert.equal(absent.codexItem.shown, false);
+  assert.equal(absent.codexItemLabel.shown, false);
 });
 
 test('cancelled Codex key entry leaves the configuration and secrets untouched', async () => {
@@ -706,11 +729,11 @@ test('Codex state is read from the file and stays independent of the Claude pane
   assert.equal(app.writes.length, 0);
   await app.switch('deepseek');
   assert.match(app.item.text, /DeepSeek/);
-  assert.match(app.codexItem.text, /Codex: DeepSeek Flash/);
+  assert.match(app.codexItem.text, /DeepSeek Flash/);
   fs.writeFileSync(path.join(app.home, 'config.toml'), app.read().replace('https://api.deepseek.com/', 'https://proxy.example/'));
   await app.events.config({ affectsConfiguration: () => true });
-  assert.match(app.codexItem.text, /Codex: Custom/);
+  assert.match(app.codexItem.text, /Custom/);
   fs.writeFileSync(path.join(app.home, 'config.toml'), 'model = "gpt-6-astra"\n');
   await app.events.config({ affectsConfiguration: () => true });
-  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+  assert.match(app.codexItem.text, /ChatGPT/);
 });
