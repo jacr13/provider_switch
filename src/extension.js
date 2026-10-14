@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const { getDeepseekRate } = require('./deepseek-rate');
 
 const { resolveClaudePresets, resolveCodexPresets, splitPresets, isDeepseekEndpoint } = require('./presets');
@@ -13,6 +14,7 @@ const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json'
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
 const CODEX_BACKUP_DIR = 'backup-provider-switcher';
+const PANEL_BACKUP_FILE = 'claude-panel.json';
 let secrets;
 let statusBarItem;
 let codexStatusBarItem;
@@ -35,6 +37,11 @@ const CODEX_ICON = '🌸';
 
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
+
+// The panel's own copy lives beside Codex's, under the user's home unless an
+// override is set, which tests and unusual setups use.
+const backupHome = () => process.env.PROVIDER_SWITCHER_HOME || path.join(os.homedir(), '.provider-switcher');
+const panelBackupPath = () => path.join(backupHome(), PANEL_BACKUP_FILE);
 
 function getPresets(notify = false) {
   const { presets, errors } = resolveClaudePresets(presetsSetting().claude);
@@ -227,6 +234,7 @@ async function setProvider(provider, replacementKey) {
     backup.managedKeys = [...managed];
     // Persist ownership before writing, so reloads and partial failures remain recoverable.
     await secrets.store(BACKUP_KEY, JSON.stringify(backup));
+    await copyPanelBackup(backup);
     const env = (current || []).filter(entry => !managed.has(entry.name));
     const environment = { ...preset.environment };
     if (preset.apiKeyEnv !== 'none') environment[preset.apiKeyEnv] = key;
@@ -412,6 +420,56 @@ async function readText(file) {
   catch { return undefined; }
 }
 
+// Secret storage is cleared when an extension is uninstalled, so what it holds is
+// mirrored into a file: that copy is what lets a later install hand the panel and
+// Codex back instead of stranding whichever preset was selected.
+async function copyPanelBackup(backup) {
+  const file = panelBackupPath();
+  if (await readText(file) !== undefined) return;
+  try {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, `${JSON.stringify(backup, null, 2)}\n`);
+    output.appendLine(`Kept the previous Claude Code settings at ${file}`);
+  } catch {
+    output.appendLine(`Could not copy the previous Claude Code settings to ${file}`);
+  }
+}
+
+// A copy that selects one of the presets is this extension's own output rather
+// than a record of what was there before it, so it is not adopted.
+function looksLikePreset(environment) {
+  return getPresets().some(preset => Object.entries(preset.environment).every(([name, value]) =>
+    name === preset.apiKeyEnv || environment[name] === value));
+}
+
+async function adoptFileBackups() {
+  if (!await secrets.get(CODEX_BACKUP_KEY)) {
+    const home = codexHome();
+    const saved = await readText(path.join(home, CODEX_BACKUP_DIR, 'config.toml'));
+    if (saved !== undefined) {
+      const active = configuredPreset(saved, getCodexPresets());
+      if (active === 'chatgpt' || active === 'custom') {
+        const catalog = `${JSON.stringify(DEEPSEEK_CODEX_CATALOG, null, 2)}\n`;
+        const owned = await readText(catalogPath(home)) === catalog;
+        await secrets.store(CODEX_BACKUP_KEY, JSON.stringify({ config: saved, catalogCreated: owned }));
+        output.appendLine('Adopted the Codex configuration kept beside it');
+      }
+    }
+  }
+  if (!await secrets.get(BACKUP_KEY)) {
+    const saved = await readText(panelBackupPath());
+    if (saved === undefined) return;
+    try {
+      const backup = JSON.parse(saved);
+      if (typeof backup !== 'object' || backup === null) return;
+      const environment = Object.fromEntries((backup.environmentVariables || []).map(entry => [entry.name, entry.value]));
+      if (looksLikePreset(environment)) return;
+      await secrets.store(BACKUP_KEY, saved);
+      output.appendLine('Adopted the Claude Code settings kept beside the extension');
+    } catch { /* an unreadable copy is not a record of anything */ }
+  }
+}
+
 // The saved original is gone, so the file can only be returned to Codex by
 // removing what this extension wrote. Everything it did not write is kept.
 async function detachCodex(home, current) {
@@ -561,6 +619,7 @@ async function activate(context) {
   context.subscriptions.push(codexStatusBarItem);
   updateStatusBar();
   await updateCodexStatusBar();
+  await adoptFileBackups();
   await keepCodexCopyOnActivation();
   const timer = setInterval(() => { updateStatusBar(); void updateCodexStatusBar(); }, 1000);
   context.subscriptions.push({ dispose: () => clearInterval(timer) });

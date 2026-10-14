@@ -34,11 +34,16 @@ The rename changes the extension ID, its commands (`provider-switcher.*`), and i
 
 ### Reinstalling, and restoring without a backup
 
-VS Code clears an extension's secret storage when it is uninstalled, and the saved originals live there: the panel's previous environment and login settings, and Codex's configuration bytes. Switch back to **Claude** and **ChatGPT** *before* uninstalling, or the switcher has nothing to restore afterwards.
+VS Code clears an extension's secret storage when it is uninstalled, which is where the switcher keeps the originals: the panel's previous environment and login settings, and Codex's configuration bytes. It therefore also writes them to files that survive the uninstall, and adopts them again the next time it activates with empty secret storage:
 
-If that already happened, choose **Claude** or **ChatGPT** anyway. Instead of refusing, the switcher explains that it has no record of the original and offers to remove the settings it wrote — that hands the panel back to your usual Claude sign-in and Codex back to its own — leaving everything it did not write in place. What it *replaced* cannot come back: values it removed from `config.toml` while a preset was selected (such as `service_tier` or `profile`), and the panel settings it overwrote. Note that after a preset is selected once more, the switcher has a fresh original to restore to.
+| Side | Copy | What it holds |
+|---|---|---|
+| Codex | `~/.codex/backup-provider-switcher/config.toml` | The configuration file as it was before the first switch. |
+| Panel | `~/.provider-switcher/claude-panel.json` | The `claudeCode` variables and login settings as they were before the first switch, plus the list of variables the switcher took over. |
 
-The copy at `~/.codex/backup-provider-switcher/config.toml` helps only when it was taken before the switcher changed the file. A copy of a configuration that already selects one of the presets is never written, because that would be this extension's own output rather than what Codex came with.
+So a reinstall can switch both sides back as usual. Set `PROVIDER_SWITCHER_HOME` to move the panel copy somewhere else; tests use it, and so can an unusual setup. A copy of a configuration that already selects one of the presets is never written *or* adopted, because that is this extension's own output rather than what the other tool came with.
+
+If no copy exists — the extension was reinstalled by an older build, or the folder was deleted — choose **Claude** or **ChatGPT** anyway. Instead of refusing, the switcher explains that it has no record of the original and offers to remove the settings it wrote, which hands the panel back to your usual Claude sign-in and Codex back to its own, leaving everything it did not write in place. What it *replaced* cannot come back: values it removed from `config.toml` while a preset was selected (such as `service_tier` or `profile`), and the panel settings it overwrote. Selecting a preset once more gives the switcher a fresh original to restore to.
 
 ## Switch Codex models
 
@@ -181,7 +186,7 @@ The switcher does not edit `~/.claude/settings.json`, workspace files, terminal 
 - Preset API keys and the original configuration backups use VS Code SecretStorage. **One key is stored per endpoint host and shared by every preset that uses it, on both sides**, so the DeepSeek key you enter for the panel is also what Codex uses. Keys saved by earlier builds were kept per preset; the switcher adopts them under the shared name the first time a preset uses one.
 - **While a preset is selected, a copy of its key is stored as plaintext in the local VS Code user setting `claudeCode.environmentVariables`.** This is how the Claude Code extension receives it. Do not share or commit your user settings. That setting is machine-scoped in the official extension.
 - **A Codex preset's key is likewise written as plaintext into `~/.codex/config.toml`** while it is selected, which is how Codex accepts it. Do not share that file. Choosing **ChatGPT**, or switching to a preset without a key, removes it from the file.
-- The copy in `~/.codex/backup-provider-switcher/` is a plaintext duplicate of the file as it was before the first switch. If that configuration held a credential, so does the copy.
+- The copies in `~/.codex/backup-provider-switcher/` and `~/.provider-switcher/` are plaintext duplicates of what was there before the first switch, on each side. If those settings held a credential, so does the copy.
 - Switching back removes the switcher's preset entries and restores the saved values. Settings backups and already-running processes may retain old credentials.
 - **Provider Switcher: Reset Preset API Key** and **Reset Codex API Key** ask which preset to update. Because the key is shared, replacing it also refreshes whichever preset is configured with it on either side; a replacement for a preset on a different endpoint is stored and used on the next switch. Cancel keeps the existing key. Reload after replacing an active key.
 - Switch back to Claude before disabling or uninstalling the switcher: disabling an extension does not undo user settings.

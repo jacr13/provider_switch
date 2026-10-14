@@ -19,18 +19,23 @@ const CODEX_BACKUP = 'codexConfigBackup.v1';
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
 // Every test reads and writes Codex configuration inside its own home directory.
-function codexHome({ config, catalog = new Map(), wsl = false } = {}) {
+function codexHome({ config, catalog = new Map(), wsl = false, copy } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-switcher-test-'));
   process.env.CODEX_HOME = home;
   if (config !== undefined) fs.writeFileSync(path.join(home, 'config.toml'), config);
   for (const [name, content] of catalog) fs.writeFileSync(path.join(home, name), content);
+  if (copy !== undefined) {
+    fs.mkdirSync(path.join(home, 'backup-provider-switcher'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'backup-provider-switcher', 'config.toml'), copy);
+  }
   return home;
 }
 
-async function setup({ initial = {}, trusted = true, installed = true, codexInstalled = true, overrides = {}, presets, codexPresets, rawSetting, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]), codex = {} } = {}) {
+async function setup({ initial = {}, trusted = true, installed = true, codexInstalled = true, overrides = {}, presets, codexPresets, rawSetting, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]), codex = {}, backupHome = fs.mkdtempSync(path.join(os.tmpdir(), 'switcher-backup-test-')) } = {}) {
   const values = copy(initial), writes = [], commands = {}, messages = [], executed = [], events = {};
   const statusItems = [], outputLines = [];
   const home = codexHome(codex);
+  process.env.PROVIDER_SWITCHER_HOME = backupHome;
   const hooks = {};
   const window = {
     createOutputChannel: () => ({ appendLine: line => outputLines.push(line), dispose() {} }),
@@ -91,7 +96,7 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   const module = { exports: {} };
   vm.runInNewContext(extensionSource, {
     module, require: name => name === 'vscode' ? vscode : requireFromExtension(name),
-    setInterval: () => 1, clearInterval() {},
+    setInterval: () => 1, clearInterval() {}, process,
   });
   await module.exports.activate({ subscriptions: [], secrets: {
     get: async key => { if (hooks.failSecret) throw new Error('test-secret'); return secret.get(key); },
@@ -99,7 +104,7 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
     delete: async key => secret.delete(key),
   } });
   return {
-    values, writes, commands, window, events, secret, messages, executed, hooks, home, outputLines,
+    values, writes, commands, window, events, secret, messages, executed, hooks, home, backupHome, outputLines,
     item: statusItems[0], codexItem: statusItems[1],
     read: () => fs.readFileSync(path.join(home, 'config.toml'), 'utf8'),
     env: () => Object.fromEntries((values.environmentVariables || []).map(entry => [entry.name, entry.value])),
@@ -134,6 +139,10 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().CUSTOM, 'keep');
   assert.equal(app.values.disableLoginPrompt, true);
   assert.equal(app.values.useTerminal, false);
+  // The previous settings are kept outside secret storage too, because an
+  // uninstall clears it.
+  const kept = JSON.parse(fs.readFileSync(path.join(app.backupHome, 'claude-panel.json'), 'utf8'));
+  assert.deepEqual(kept.environmentVariables, [{ name: 'CUSTOM', value: 'keep' }]);
   assert.ok(app.item.text.startsWith('Claude: \u{1F433} DeepSeek'), app.item.text);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
@@ -618,6 +627,27 @@ test('the panel is handed back to Claude when the saved original is gone', async
   assert.equal(Object.hasOwn(app.values, 'useTerminal'), false);
   assert.match(app.item.text, /Claude/);
   assert.ok(app.messages.some(message => /no record of the settings/.test(message)));
+});
+
+test('a reinstall adopts the copies on disk and switches back', async () => {
+  // Codex: the live file selects the preset, the original survives beside it.
+  const switched = 'model = "deepseek-flash"\nmodel_provider = "deepseek"\n\n[model_providers.deepseek]\nbase_url = "https://api.deepseek.com/"\n';
+  const codex = await setup({ codex: { config: switched, copy: codexFixture }, secret: new Map() });
+  assert.ok(codex.outputLines.some(line => line.includes('Adopted the Codex configuration')));
+  await codex.switchCodex('chatgpt');
+  assert.equal(codex.read(), codexFixture);
+  assert.ok(!codex.messages.some(message => /no record of the file/.test(message)));
+
+  // The panel: the copy the previous install wrote is adopted on the next one.
+  const backupHome = fs.mkdtempSync(path.join(os.tmpdir(), 'switcher-backup-test-'));
+  const before = await setup({ backupHome, initial: { environmentVariables: [{ name: 'CUSTOM', value: 'keep' }] } });
+  await before.switch('deepseek');
+  const panel = await setup({ backupHome, initial: before.values, secret: new Map() });
+  assert.match(panel.item.text, /DeepSeek/);
+  assert.ok(panel.outputLines.some(line => line.includes('Adopted the Claude Code settings')));
+  await panel.switch('claude');
+  assert.deepEqual(panel.env(), { CUSTOM: 'keep' });
+  assert.ok(!panel.messages.some(message => /no record of the settings/.test(message)));
 });
 
 test('the copy comes from the saved original, not from the live file', async () => {
