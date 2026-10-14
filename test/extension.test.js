@@ -66,8 +66,8 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
     window, StatusBarAlignment: { Left: 1, Right: 2 }, ConfigurationTarget: { Global: 1 },
     extensions: { getExtension: id => {
       assert.ok(['anthropic.claude-code', 'openai.chatgpt'].includes(id));
-      if (id === 'anthropic.claude-code') return installed ? {} : undefined;
-      return codexInstalled ? {} : undefined;
+      if (id === 'anthropic.claude-code') return (hooks.claudeInstalled ?? installed) ? {} : undefined;
+      return (hooks.codexInstalled ?? codexInstalled) ? {} : undefined;
     } },
     workspace: {
       isTrusted: trusted,
@@ -125,6 +125,38 @@ test('activation is read-only and provider comes from extension settings', async
   app.events.config({ affectsConfiguration: () => true });
   assert.match(app.item.text, /Claude/);
   assert.equal(app.item.color, '#d97706');
+});
+
+test('Claude status button follows extension availability without changing settings', async () => {
+  const app = await setup({ installed: false });
+  assert.equal(app.item.shown, false);
+  assert.equal(app.codexItem.shown, true);
+  app.hooks.claudeInstalled = true;
+  await app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.item.shown, true);
+  assert.match(app.item.text, /^Claude:/);
+  app.hooks.claudeInstalled = false;
+  await app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.item.shown, false);
+  assert.equal(app.codexItem.shown, true);
+  assert.equal(app.writes.length, 0);
+});
+
+test('Codex status button follows extension availability even with an existing configuration', async () => {
+  const original = 'model = "gpt-6-astra"\n';
+  const app = await setup({ codexInstalled: false, codex: { config: original } });
+  assert.equal(app.codexItem.shown, false);
+  assert.equal(app.item.shown, true);
+  app.hooks.codexInstalled = true;
+  await app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.codexItem.shown, true);
+  assert.match(app.codexItem.text, /^Codex:/);
+  app.hooks.codexInstalled = false;
+  await app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.codexItem.shown, false);
+  assert.equal(app.item.shown, true);
+  assert.equal(app.read(), original);
+  assert.equal(app.writes.length, 0);
 });
 
 test('DeepSeek configures the native chat panel and preserves unrelated settings', async () => {
@@ -814,6 +846,20 @@ test('keys saved under the older per-target names are adopted once', async () =>
   assert.match(app.read(), /experimental_bearer_token = "sk-old"/);
   assert.equal(app.secret.get('deepseekApiKey'), 'sk-old');
   assert.equal(app.secret.has(legacy), false);
+});
+
+test('Codex switches and restores without Claude Code installed', async () => {
+  const manifest = require('../package.json');
+  assert.ok(!(manifest.extensionDependencies || []).includes('anthropic.claude-code'));
+  const app = await setup({ installed: false, codex: { config: codexFixture } });
+  await app.switchCodex('deepseek-flash');
+  assert.match(app.read(), /model = "deepseek-flash"/);
+  assert.match(app.codexItem.text, /DeepSeek Flash/);
+  assert.equal(app.writes.length, 0);
+  await app.switchCodex('chatgpt');
+  assert.equal(app.read(), codexFixture);
+  assert.equal(app.writes.length, 0);
+  assert.ok(!app.messages.some(message => /Install and enable Claude Code/.test(message)));
 });
 
 test('Codex state is read from the file and stays independent of the Claude panel', async () => {

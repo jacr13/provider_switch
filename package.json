@@ -38,9 +38,6 @@
     "onStartupFinished"
   ],
   "main": "./src/extension.js",
-  "extensionDependencies": [
-    "anthropic.claude-code"
-  ],
   "contributes": {
     "commands": [
       {

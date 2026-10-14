@@ -100,6 +100,10 @@ function configuredProvider() {
 }
 
 function updateStatusBar() {
+  if (!vscode.extensions.getExtension('anthropic.claude-code')) {
+    statusBarItem.hide();
+    return;
+  }
   const provider = configuredProvider();
   const preset = getPresets().find(item => item.id === provider);
   // The target comes first, so both buttons read the same way round. The whole
@@ -322,8 +326,7 @@ async function readCodexConfig() {
 async function updateCodexStatusBar() {
   try { codexConfigText = await readCodexConfig(); }
   catch { /* unreadable for now: keep showing the last known state */ }
-  // Machines that never ran Codex have nothing to switch, so stay out of the way.
-  if (codexConfigText === null && !vscode.extensions.getExtension('openai.chatgpt')) {
+  if (!vscode.extensions.getExtension('openai.chatgpt')) {
     codexStatusBarItem.hide();
     return;
   }
