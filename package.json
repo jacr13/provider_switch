@@ -1,0 +1,99 @@
+{
+    "name": "claude-deepseek-switcher",
+    "displayName": "Claude Deepseek Switcher",
+    "description": "Seamlessly switch between Anthropic Claude and Deepseek AI models in Claude Code without leaving VS Code.",
+    "version": "1.0.1",
+    "icon": "images/icon.png",
+    "publisher": "shivampip",
+    "author": {
+        "name": "Shivam Agrawal",
+        "email": "shivam301296@gmail.com"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/shivampip/claude-deepseek-switcher"
+    },
+    "homepage": "https://github.com/shivampip/claude-deepseek-switcher#readme",
+    "bugs": {
+        "url": "https://github.com/shivampip/claude-deepseek-switcher/issues"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "keywords": [
+        "claude",
+        "deepseek",
+        "ai",
+        "llm",
+        "switcher"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "claude-deepseek-switcher.switchModel",
+                "title": "Claude Deepseek Switcher: Switch Model"
+            },
+            {
+                "command": "claude-deepseek-switcher.resetDeepseekApiKey",
+                "title": "Claude Deepseek Switcher: Reset Deepseek API Key"
+            }
+        ],
+        "configuration": {
+            "title": "Claude Deepseek Switcher",
+            "properties": {
+                "claudeDeepseekSwitcher.currentModel": {
+                    "type": "string",
+                    "enum": [
+                        "claude",
+                        "deepseek"
+                    ],
+                    "default": "claude",
+                    "description": "The currently active AI model"
+                },
+                "claudeDeepseekSwitcher.claudeModel": {
+                    "type": "string",
+                    "default": "claude-sonnet-4-6",
+                    "description": "Claude model variant to use"
+                },
+                "claudeDeepseekSwitcher.deepseekModel": {
+                    "type": "string",
+                    "default": "deepseek-chat",
+                    "description": "Deepseek model variant to use"
+                },
+                "claudeDeepseekSwitcher.statusBarAlignment": {
+                    "type": "string",
+                    "enum": [
+                        "left",
+                        "right"
+                    ],
+                    "default": "right",
+                    "description": "Position of the status bar item"
+                }
+            }
+        },
+        "keybindings": [
+            {
+                "command": "claude-deepseek-switcher.switchModel",
+                "key": "ctrl+alt+m",
+                "mac": "cmd+alt+m",
+                "when": "editorFocus"
+            }
+        ]
+    },
+    "scripts": {
+        "test": "node --test deepseek-rate.test.js",
+        "lint": "eslint .",
+        "package": "vsce package"
+    },
+    "devDependencies": {
+        "@vscode/vsce": "^2.23.0"
+    }
+}
