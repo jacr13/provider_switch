@@ -4,7 +4,7 @@ All notable changes to **Provider Switcher** will be documented here.
 
 ## [Unreleased]
 
-- Give the restored Codex configuration a robot icon in place of the generic sparkle, matching the starburst the Claude side already uses.
+- Give the restored Codex configuration OpenAI's blossom in place of the generic sparkle, matching the starburst the Claude side already uses.
 - Show a whale instead of the generic rocket for presets on DeepSeek's own endpoint, on both status bar buttons. VS Code's codicon set has no whale, so the emoji keeps its own color rather than the preset's status bar color.
 - Label the panel's status bar item with a `Claude:` prefix, matching the Codex button, and shorten the DeepSeek rate suffix from Peak/Off-peak to High/Low.
 - Merge the two preset settings into one `providerSwitcher.presets` object with a `claude` section for the panel and a `codex` section for Codex. Settings saved in the older flat shape are still read as the `claude` section.

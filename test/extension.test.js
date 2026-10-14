@@ -155,7 +155,7 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   await local.switch('local');
   assert.equal(local.item.text, '$(rocket) Claude: Local model');
   // Restored configurations carry the service's own mark.
-  assert.equal(local.codexItem.text, '$(robot) Codex: ChatGPT');
+  assert.equal(local.codexItem.text, '\u{1F338} Codex: ChatGPT');
 });
 
 test('Claude restores credentials and login settings, retaining unrelated edits', async () => {

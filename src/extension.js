@@ -27,9 +27,9 @@ const RATE_LABELS = { peak: 'High', 'off-peak': 'Low', unknown: 'Rate unknown' }
 const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : '$(rocket)';
 
 // The restored configurations carry the service's own mark instead: Claude's is
-// a starburst, which the sparkle codicon stands in for, and Codex gets the robot
-// since nothing in the codicon set matches OpenAI's blossom.
-const CODEX_ICON = '$(robot)';
+// a starburst, which the sparkle codicon stands in for, and Codex gets OpenAI's
+// blossom as an emoji since the codicon set has no flower.
+const CODEX_ICON = '🌸';
 
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
