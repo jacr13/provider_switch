@@ -3,22 +3,7 @@
 const vscode = require('vscode');
 const { getDeepseekRate } = require('./deepseek-rate');
 
-const DEEPSEEK_ENV = {
-  ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
-  ANTHROPIC_MODEL: 'deepseek-flash[1m]',
-  ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-flash[1m]',
-  ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-flash[1m]',
-  ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-flash',
-  CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
-  CLAUDE_CODE_EFFORT_LEVEL: 'max',
-  CLAUDE_CODE_AUTO_COMPACT_WINDOW: '786432',
-  ANTHROPIC_API_KEY: '',
-  CLAUDE_CODE_OAUTH_TOKEN: '',
-  CLAUDE_CODE_USE_BEDROCK: '0',
-  CLAUDE_CODE_USE_VERTEX: '0',
-  CLAUDE_CODE_USE_FOUNDRY: '0',
-};
-const MANAGED_KEYS = new Set([...Object.keys(DEEPSEEK_ENV), 'ANTHROPIC_AUTH_TOKEN']);
+const { resolvePresets, secretKey, BASE_MANAGED_KEYS, DEFAULT_PRESETS } = require('./presets');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 let secrets;
 let statusBarItem;
@@ -27,9 +12,20 @@ let busy = false;
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 
+function getPresets(notify = false) {
+  // Read user settings only: a project must not redirect a saved provider key.
+  const config = vscode.workspace.getConfiguration('claudeCodeSwitcher').inspect('presets')?.globalValue;
+  const { presets, errors } = resolvePresets(config);
+  if (notify && errors.length) vscode.window.showWarningMessage(errors[0]);
+  return presets;
+}
+
 function configuredProvider() {
   const env = Object.fromEntries(claudeConfig().get('environmentVariables', []).map(entry => [entry.name, entry.value]));
-  if (env.ANTHROPIC_BASE_URL?.replace(/\/$/, '') === DEEPSEEK_ENV.ANTHROPIC_BASE_URL) return 'deepseek';
+  const matches = getPresets().filter(preset => Object.entries(preset.environment).every(([name, value]) =>
+    name === preset.apiKeyEnv || env[name] === value));
+  if (matches.length === 1) return matches[0].id;
+  if (matches.length > 1) return 'custom';
   if ((env.ANTHROPIC_BASE_URL && env.ANTHROPIC_BASE_URL !== 'https://api.anthropic.com') ||
       ['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY'].some(key => /^(1|true)$/i.test(env[key] || ''))) return 'custom';
   return 'claude';
@@ -37,10 +33,11 @@ function configuredProvider() {
 
 function updateStatusBar() {
   const provider = configuredProvider();
-  statusBarItem.text = provider === 'deepseek' ? '$(rocket) DeepSeek' : provider === 'custom' ? '$(settings-gear) Custom provider' : '$(sparkle) Claude';
+  const preset = getPresets().find(item => item.id === provider);
+  statusBarItem.text = preset ? `$(rocket) ${preset.label}` : provider === 'custom' ? '$(settings-gear) Custom provider' : '$(sparkle) Claude';
   statusBarItem.name = 'Claude Code Provider';
   statusBarItem.tooltip = 'Provider configured for the Claude Code extension. Click to switch. Reload the window after switching; running chats may still use their previous provider. External Claude settings can override this configuration.';
-  if (provider === 'deepseek') {
+  if (preset?.environment.ANTHROPIC_BASE_URL.replace(/\/$/, '') === DEFAULT_PRESETS.deepseek.environment.ANTHROPIC_BASE_URL) {
     const rate = getDeepseekRate();
     statusBarItem.text += ' | ' + { peak: 'Peak', 'off-peak': 'Off-peak', unknown: 'Rate unknown' }[rate];
     statusBarItem.tooltip += '\nRate estimate uses the bundled 2026 holiday calendar and your clock, not live billing.';
@@ -48,15 +45,15 @@ function updateStatusBar() {
   statusBarItem.show();
 }
 
-async function promptKey() {
+async function promptKey(preset) {
   const key = await vscode.window.showInputBox({
-    title: 'DeepSeek key for the Claude Code extension',
-    prompt: 'Saved in SecretStorage and copied to local VS Code user settings while DeepSeek is selected. Do not share those settings.',
+    title: `${preset.label} key for the Claude Code extension`,
+    prompt: `Endpoint: ${preset.environment.ANTHROPIC_BASE_URL}. Saved in SecretStorage and copied to local VS Code user settings while selected. Do not share those settings.`,
     password: true, ignoreFocusOut: true,
     validateInput: value => value?.trim() ? null : 'API key cannot be empty',
   });
   if (!key?.trim()) return null;
-  await secrets.store('deepseekApiKey', key.trim());
+  await secrets.store(secretKey(preset), key.trim());
   return key.trim();
 }
 
@@ -78,7 +75,7 @@ function canConfigure(provider) {
       return false;
     }
   }
-  if (provider === 'deepseek' && cfg.get('claudeProcessWrapper')) {
+  if (provider !== 'claude' && cfg.get('claudeProcessWrapper')) {
     vscode.window.showWarningMessage('A custom Claude process wrapper is configured. Remove it before using the provider switcher so it cannot override the selected provider.');
     return false;
   }
@@ -121,26 +118,45 @@ async function setProvider(provider, replacementKey) {
   const cfg = claudeConfig();
   const current = globalValue(cfg, 'environmentVariables');
   const saved = await secrets.get(BACKUP_KEY);
-  if (provider === 'deepseek') {
-    const key = replacementKey || await secrets.get('deepseekApiKey') || await promptKey();
-    if (!key) return;
-    if (!saved) {
-      // The original environment may contain an Anthropic key: encrypt the backup.
-      await secrets.store(BACKUP_KEY, JSON.stringify({
-        environmentVariables: current,
-        disableLoginPrompt: globalValue(cfg, 'disableLoginPrompt'),
-      }));
+  const backup = saved ? JSON.parse(saved) : {
+    environmentVariables: current,
+    disableLoginPrompt: globalValue(cfg, 'disableLoginPrompt'),
+  };
+  const managed = new Set(backup.managedKeys || BASE_MANAGED_KEYS);
+  if (provider !== 'claude') {
+    const preset = getPresets(true).find(item => item.id === provider);
+    if (!preset) return;
+    const key = preset.apiKeyEnv === 'none' ? null : replacementKey || await secrets.get(secretKey(preset)) || await promptKey(preset);
+    if (preset.apiKeyEnv !== 'none' && !key) return;
+    const nextKeys = Object.keys(preset.environment);
+    // Capture newly claimed variables when first touched, including edits made
+    // while another preset was active. Keep the original provider baseline.
+    const newlyManaged = new Set(nextKeys.filter(name => !managed.has(name)));
+    if (saved && newlyManaged.size) {
+      const original = [
+        ...(backup.environmentVariables || []).filter(entry => !newlyManaged.has(entry.name)),
+        ...(current || []).filter(entry => newlyManaged.has(entry.name)),
+      ];
+      backup.environmentVariables = original.length || backup.environmentVariables !== undefined ? original : undefined;
     }
-    const env = (current || []).filter(entry => !MANAGED_KEYS.has(entry.name));
-    env.push(...Object.entries({ ...DEEPSEEK_ENV, ANTHROPIC_AUTH_TOKEN: key }).map(([name, value]) => ({ name, value })));
+    nextKeys.forEach(name => managed.add(name));
+    backup.managedKeys = [...managed];
+    // Persist ownership before writing, so reloads and partial failures remain recoverable.
+    await secrets.store(BACKUP_KEY, JSON.stringify(backup));
+    const env = (current || []).filter(entry => !managed.has(entry.name));
+    const environment = { ...preset.environment };
+    if (preset.apiKeyEnv !== 'none') environment[preset.apiKeyEnv] = key;
+    env.push(...Object.entries(environment).map(([name, value]) => ({ name, value })));
     try {
       await writeSettings(cfg, [['environmentVariables', env], ['disableLoginPrompt', true], ['useTerminal', false]]);
     } catch (error) {
-      // Do not retain a stale baseline after a fully rolled-back first switch.
-      if (!saved && error.rolledBack) await secrets.delete(BACKUP_KEY);
+      if (error.rolledBack) {
+        if (saved) await secrets.store(BACKUP_KEY, saved);
+        else await secrets.delete(BACKUP_KEY);
+      }
       throw error;
     }
-    await offerReload('DeepSeek');
+    await offerReload(preset.label);
   } else {
     if (!saved && configuredProvider() !== 'claude') {
       vscode.window.showWarningMessage('This provider was configured outside the switcher, so there is no saved Claude configuration to restore. Review Claude Code user settings first.');
@@ -148,10 +164,9 @@ async function setProvider(provider, replacementKey) {
     }
     const changes = [];
     if (saved) {
-      const backup = JSON.parse(saved);
-      // Keep unrelated entries added or edited while DeepSeek was selected.
-      const env = (current || []).filter(entry => !MANAGED_KEYS.has(entry.name));
-      env.push(...(backup.environmentVariables || []).filter(entry => MANAGED_KEYS.has(entry.name)));
+      // Keep unrelated entries added or edited while a preset was selected.
+      const env = (current || []).filter(entry => !managed.has(entry.name));
+      env.push(...(backup.environmentVariables || []).filter(entry => managed.has(entry.name)));
       changes.push(['environmentVariables', env.length || backup.environmentVariables !== undefined ? env : undefined]);
       changes.push(['disableLoginPrompt', backup.disableLoginPrompt]);
     }
@@ -165,17 +180,25 @@ async function setProvider(provider, replacementKey) {
 async function switchModel() {
   const picked = await vscode.window.showQuickPick([
     { label: '$(sparkle) Claude', description: 'Restore your previous Claude Code configuration', model: 'claude' },
-    { label: '$(rocket) DeepSeek', description: 'Use DeepSeek in the Claude Code chat panel', model: 'deepseek' },
-  ], { title: 'Claude Code: Switch Provider', placeHolder: 'Choose the provider for the Claude Code extension' });
+    ...getPresets(true).map(preset => ({ label: `$(rocket) ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
+  ], { title: 'Claude Code Switcher: Switch Preset', placeHolder: 'Choose a preset for the Claude Code extension' });
   if (picked) await setProvider(picked.model);
 }
 
-async function resetDeepseekApiKey() {
-  if (!canConfigure('deepseek')) return;
-  const key = await promptKey();
+async function resetApiKey(presetId) {
+  if (!canConfigure(presetId || 'preset')) return;
+  const presets = getPresets(true).filter(preset => preset.apiKeyEnv !== 'none');
+  const picked = presetId ? { model: presetId } : await vscode.window.showQuickPick(
+    presets.map(preset => ({ label: preset.label, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
+    { title: 'Claude Code Switcher: Reset Preset API Key', placeHolder: 'Choose the preset whose key you want to replace' },
+  );
+  const preset = presets.find(item => item.id === picked?.model);
+  if (!preset) return;
+  const active = configuredProvider() === preset.id;
+  const key = await promptKey(preset);
   if (!key) return;
-  if (configuredProvider() === 'deepseek') await setProvider('deepseek', key);
-  else vscode.window.showInformationMessage('DeepSeek key saved for the next provider switch.');
+  if (active) await setProvider(preset.id, key);
+  else vscode.window.showInformationMessage(`${preset.label} key saved for the next provider switch.`);
 }
 
 function guarded(action) {
@@ -190,18 +213,22 @@ function guarded(action) {
 
 function activate(context) {
   secrets = context.secrets;
-  const cfg = vscode.workspace.getConfiguration('claudeSwitcher');
+  const cfg = vscode.workspace.getConfiguration('claudeCodeSwitcher');
   statusBarItem = vscode.window.createStatusBarItem('claude-code-provider', cfg.get('statusBarAlignment') === 'left' ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = 'claude-switcher.switchModel';
+  statusBarItem.command = 'claude-code-switcher.switchModel';
   context.subscriptions.push(statusBarItem);
   updateStatusBar();
   const timer = setInterval(updateStatusBar, 1000);
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-    if (event.affectsConfiguration('claudeCode')) updateStatusBar();
+    if (event.affectsConfiguration('claudeCode') || event.affectsConfiguration('claudeCodeSwitcher')) updateStatusBar();
   }));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-switcher.switchModel', guarded(switchModel)));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-switcher.resetDeepseekApiKey', guarded(resetDeepseekApiKey)));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.switchModel', guarded(switchModel)));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.resetApiKey', guarded(() => resetApiKey())));
+  // Keep a direct DeepSeek key-reset command for custom keybindings.
+  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.resetDeepseekApiKey', guarded(() => resetApiKey('deepseek'))));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.configurePresets', () =>
+    vscode.commands.executeCommand('workbench.action.openSettings', 'claudeCodeSwitcher.presets')));
 }
 
 function deactivate() {}

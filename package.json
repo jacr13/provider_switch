@@ -1,22 +1,22 @@
 {
-  "name": "claude-switcher",
-  "displayName": "[JACR] Claude Switcher",
-  "description": "Switch the Claude Code extension chat panel between Anthropic Claude and another provider.",
-  "version": "1.3.0",
+  "name": "claude-code-switcher",
+  "displayName": "Claude Code Switcher",
+  "description": "Switch the Claude Code chat panel between configurable provider presets, with DeepSeek included.",
+  "version": "0.1.0",
   "icon": "images/icon.png",
   "publisher": "jacr",
   "author": {
-    "name": "jacr",
+    "name": "JACR13",
     "email": "jacr@gmail.com"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jacr13/claude-switcher"
+    "url": "https://github.com/jacr13/claude-code-switcher"
   },
-  "homepage": "https://github.com/jacr13/claude-switcher#readme",
+  "homepage": "https://github.com/jacr13/claude-code-switcher#readme",
   "bugs": {
-    "url": "https://github.com/jacr13/claude-switcher/issues"
+    "url": "https://github.com/jacr13/claude-code-switcher/issues"
   },
   "engines": {
     "vscode": "^1.94.0"
@@ -41,18 +41,52 @@
   "contributes": {
     "commands": [
       {
-        "command": "claude-switcher.switchModel",
-        "title": "Claude Switcher: Switch Model"
+        "command": "claude-code-switcher.switchModel",
+        "title": "Claude Code Switcher: Switch Preset"
       },
       {
-        "command": "claude-switcher.resetDeepseekApiKey",
-        "title": "Claude Switcher: Reset Deepseek API Key"
+        "command": "claude-code-switcher.resetApiKey",
+        "title": "Claude Code Switcher: Reset Preset API Key"
+      },
+      {
+        "command": "claude-code-switcher.configurePresets",
+        "title": "Claude Code Switcher: Configure Presets"
       }
     ],
     "configuration": {
-      "title": "Claude Switcher",
+      "title": "Claude Code Switcher",
       "properties": {
-        "claudeSwitcher.statusBarAlignment": {
+        "claudeCodeSwitcher.presets": {
+          "type": "object",
+          "scope": "machine",
+          "default": {},
+          "markdownDescription": "Provider presets for Anthropic-compatible endpoints. Edit in User Settings JSON. The built-in `deepseek` preset is merged with your overrides; set it to `null` to hide it. New IDs add presets. Keys are prompted for and saved separately. After editing, select the preset again and reload the window.",
+          "patternProperties": {
+            "^(?!claude$|custom$)[a-z][a-z0-9-]*$": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "properties": {
+                "label": { "type": "string", "minLength": 1, "description": "Name shown in the preset picker and status bar." },
+                "apiKeyEnv": {
+                  "type": "string",
+                  "enum": ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "none"],
+                  "default": "ANTHROPIC_AUTH_TOKEN",
+                  "description": "Variable receiving the separately stored API key. Use none for an endpoint that needs no key."
+                },
+                "environment": {
+                  "type": "object",
+                  "description": "Environment variables for this preset. ANTHROPIC_BASE_URL is required for new presets. Values are strings; null removes an inherited value. Do not put credentials here. Cloud-provider routing flags must remain 0.",
+                  "patternProperties": {
+                    "^(?!ANTHROPIC_AUTH_TOKEN$|ANTHROPIC_API_KEY$|CLAUDE_CODE_OAUTH_TOKEN$)[A-Z_][A-Z0-9_]*$": { "type": ["string", "null"] }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "claudeCodeSwitcher.statusBarAlignment": {
           "type": "string",
           "enum": [
             "left",
@@ -65,7 +99,7 @@
     },
     "keybindings": [
       {
-        "command": "claude-switcher.switchModel",
+        "command": "claude-code-switcher.switchModel",
         "key": "ctrl+alt+m",
         "mac": "cmd+alt+m",
         "when": "editorFocus"
@@ -73,8 +107,8 @@
     ]
   },
   "scripts": {
-    "test": "node --test deepseek-rate.test.js extension.test.js",
-    "lint": "node --check extension.js && node --check deepseek-rate.js",
+    "test": "node --test deepseek-rate.test.js extension.test.js presets.test.js",
+    "lint": "node --check extension.js && node --check deepseek-rate.js && node --check presets.js",
     "package": "vsce package"
   },
   "devDependencies": {

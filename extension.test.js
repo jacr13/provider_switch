@@ -3,11 +3,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
+const { resolvePresets, secretKey } = require('./presets');
 
 const BACKUP = 'claudeExtensionSettingsBackup.v1';
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
-async function setup({ initial = {}, trusted = true, installed = true, overrides = {}, secret = new Map([['deepseekApiKey', 'test-secret']]) } = {}) {
+async function setup({ initial = {}, trusted = true, installed = true, overrides = {}, presets, workspacePresets, secret = new Map([['deepseekApiKey', 'test-secret']]) } = {}) {
   const values = copy(initial), writes = [], commands = {}, messages = [], executed = [], events = {};
   const item = { show() {}, dispose() {} };
   const hooks = {};
@@ -37,8 +38,11 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
     workspace: {
       isTrusted: trusted,
       getConfiguration: section => {
-        assert.ok(['claudeCode', 'claudeSwitcher'].includes(section));
-        return section === 'claudeCode' ? cfg : { get: () => undefined };
+        assert.ok(['claudeCode', 'claudeCodeSwitcher'].includes(section));
+        return section === 'claudeCode' ? cfg : {
+          get: () => workspacePresets ?? presets,
+          inspect: () => ({ globalValue: presets, workspaceValue: workspacePresets }),
+        };
       },
       onDidChangeConfiguration: fn => { events.config = fn; return { dispose() {} }; },
     },
@@ -60,13 +64,14 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
   return {
     values, writes, commands, window, item, events, secret, messages, executed, hooks,
     env: () => Object.fromEntries((values.environmentVariables || []).map(entry => [entry.name, entry.value])),
-    switch: async model => { window.showQuickPick = async () => ({ model }); await commands['claude-switcher.switchModel'](); },
-    reset: () => commands['claude-switcher.resetDeepseekApiKey'](),
+    switch: async model => { window.showQuickPick = async () => ({ model }); await commands['claude-code-switcher.switchModel'](); },
+    reset: () => commands['claude-code-switcher.resetDeepseekApiKey'](),
   };
 }
 
 test('activation is read-only and provider comes from extension settings', async () => {
-  const app = await setup({ initial: { environmentVariables: [{ name: 'ANTHROPIC_BASE_URL', value: 'https://api.deepseek.com/anthropic' }] } });
+  const environment = resolvePresets().presets[0].environment;
+  const app = await setup({ initial: { environmentVariables: Object.entries(environment).map(([name, value]) => ({ name, value })) } });
   assert.equal(app.writes.length, 0);
   assert.match(app.item.text, /DeepSeek/);
   app.values.environmentVariables = [];
@@ -121,7 +126,7 @@ test('backup survives extension reload and repeated DeepSeek selection', async (
 test('cancelled picker, key entry, and replacement leave configuration untouched', async () => {
   const app = await setup({ secret: new Map() });
   app.window.showQuickPick = async () => undefined;
-  await app.commands['claude-switcher.switchModel']();
+  await app.commands['claude-code-switcher.switchModel']();
   await app.switch('deepseek');
   assert.equal(app.writes.length, 0);
   assert.equal(app.secret.has(BACKUP), false);
@@ -199,4 +204,144 @@ test('external provider without a backup is not erased or mislabeled as Claude',
   assert.equal(app.writes.length, 0);
   assert.match(app.item.text, /Custom provider/);
   assert.match(app.messages[0], /no saved Claude configuration/);
+});
+
+const localPreset = { label: 'Local model', apiKeyEnv: 'none', environment: {
+  ANTHROPIC_BASE_URL: 'http://localhost:8080', ANTHROPIC_MODEL: 'local-model', LOCAL_OPTION: 'preset-value',
+} };
+
+test('custom preset clears DeepSeek values and restores all owned variables after reload and deletion', async () => {
+  const initial = { environmentVariables: [{ name: 'LOCAL_OPTION', value: 'before' }, { name: 'UNRELATED', value: 'keep' }] };
+  const presets = { local: localPreset };
+  const app = await setup({ initial, presets });
+  await app.switch('deepseek');
+  app.values.environmentVariables.find(entry => entry.name === 'LOCAL_OPTION').value = 'edited-before-local';
+  await app.switch('local');
+  assert.equal(app.env().ANTHROPIC_MODEL, 'local-model');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, '');
+  assert.equal(app.env().CLAUDE_CODE_EFFORT_LEVEL, undefined);
+  assert.equal(app.env().ANTHROPIC_DEFAULT_OPUS_MODEL, undefined);
+  assert.equal(app.env().LOCAL_OPTION, 'preset-value');
+  assert.match(app.item.text, /Local model/);
+  assert.ok(!app.item.text.includes('peak'));
+  await app.switch('deepseek');
+  assert.equal(app.env().LOCAL_OPTION, undefined);
+  const reloaded = await setup({ initial: app.values, secret: app.secret, presets: { deepseek: null } });
+  await reloaded.switch('claude');
+  assert.deepEqual(reloaded.env(), { LOCAL_OPTION: 'edited-before-local', UNRELATED: 'keep' });
+  assert.equal(reloaded.secret.has(BACKUP), false);
+});
+
+test('preset-specific credentials and reset do not reuse another provider key', async () => {
+  const presets = { other: { ...localPreset, apiKeyEnv: 'ANTHROPIC_API_KEY' } };
+  const app = await setup({ presets });
+  let prompts = 0;
+  app.window.showInputBox = async () => { prompts++; return 'other-key'; };
+  await app.switch('other');
+  assert.equal(prompts, 1);
+  assert.equal(app.env().ANTHROPIC_API_KEY, 'other-key');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, '');
+  assert.equal(app.secret.get('deepseekApiKey'), 'test-secret');
+  app.window.showInputBox = async () => 'replacement';
+  app.window.showQuickPick = async () => ({ model: 'other' });
+  await app.commands['claude-code-switcher.resetApiKey']();
+  assert.equal(app.env().ANTHROPIC_API_KEY, 'replacement');
+  const other = resolvePresets(presets).presets.find(preset => preset.id === 'other');
+  assert.equal(app.secret.get(secretKey(other)), 'replacement');
+  await app.switch('deepseek');
+  await app.switch('other');
+  assert.equal(app.env().ANTHROPIC_API_KEY, 'replacement');
+});
+
+test('editing an endpoint requires a new key and workspace preset overrides are ignored', async () => {
+  const presets = { deepseek: { environment: { ANTHROPIC_BASE_URL: 'https://other.example' } } };
+  const app = await setup({ presets });
+  await app.switch('deepseek');
+  assert.equal(app.writes.length, 0);
+  const user = await setup({ workspacePresets: presets });
+  await user.switch('deepseek');
+  assert.equal(user.env().ANTHROPIC_BASE_URL, 'https://api.deepseek.com/anthropic');
+});
+
+test('changed preset values apply only on reselection and status reflects actual configuration', async () => {
+  const presets = { deepseek: { environment: { ANTHROPIC_MODEL: 'first-model' } } };
+  const app = await setup({ presets });
+  await app.switch('deepseek');
+  assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
+  presets.deepseek.environment.ANTHROPIC_MODEL = 'second-model';
+  app.events.config({ affectsConfiguration: section => section === 'claudeCodeSwitcher' });
+  assert.match(app.item.text, /Custom provider/);
+  assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
+  await app.switch('deepseek');
+  assert.equal(app.env().ANTHROPIC_MODEL, 'second-model');
+  assert.match(app.item.text, /DeepSeek/);
+});
+
+test('failed preset-to-preset switch restores settings and ownership backup', async () => {
+  const app = await setup({ presets: { local: localPreset } });
+  await app.switch('deepseek');
+  const before = copy(app.values), backup = app.secret.get(BACKUP);
+  app.hooks.failWrite = name => name === 'disableLoginPrompt';
+  await app.switch('local');
+  assert.deepEqual(app.values, before);
+  assert.equal(app.secret.get(BACKUP), backup);
+  app.hooks.failWrite = undefined;
+  await app.switch('claude');
+  assert.equal(app.values.environmentVariables, undefined);
+});
+
+test('old backups restore and invalid presets do not block restoration', async () => {
+  const secret = new Map([[BACKUP, JSON.stringify({ environmentVariables: [{ name: 'ANTHROPIC_API_KEY', value: 'original' }] })]]);
+  const app = await setup({ secret, presets: { deepseek: { environment: { ANTHROPIC_MODEL: 123 } } }, initial: {
+    environmentVariables: [{ name: 'ANTHROPIC_BASE_URL', value: 'https://api.deepseek.com/anthropic' }],
+  } });
+  await app.switch('claude');
+  assert.deepEqual(app.env(), { ANTHROPIC_API_KEY: 'original' });
+});
+
+test('picker lists configured presets and configure command opens settings', async () => {
+  const app = await setup({ presets: { deepseek: null, local: localPreset } });
+  app.window.showQuickPick = async items => {
+    assert.deepEqual(Array.from(items, item => item.model), ['claude', 'local']);
+    return undefined;
+  };
+  await app.commands['claude-code-switcher.switchModel']();
+  assert.equal(app.writes.length, 0);
+  await app.commands['claude-code-switcher.configurePresets']();
+  assert.deepEqual(app.executed, ['workbench.action.openSettings']);
+});
+
+test('restoring after multiple presets preserves an originally unset environment setting', async () => {
+  const app = await setup({ presets: { local: localPreset } });
+  await app.switch('deepseek');
+  await app.switch('local');
+  await app.switch('claude');
+  assert.equal(Object.hasOwn(app.values, 'environmentVariables'), false);
+});
+
+test('partial rollback retains custom-variable ownership for recovery after reload', async () => {
+  const presets = { local: localPreset };
+  const app = await setup({ presets });
+  await app.switch('deepseek');
+  let environmentWrites = 0;
+  app.hooks.failWrite = name => name === 'disableLoginPrompt' ||
+    (name === 'environmentVariables' && ++environmentWrites > 1);
+  await app.switch('local');
+  assert.equal(app.env().LOCAL_OPTION, 'preset-value');
+  assert.ok(app.secret.has(BACKUP));
+  const reloaded = await setup({ initial: app.values, secret: app.secret, presets: { deepseek: null } });
+  await reloaded.switch('claude');
+  assert.equal(Object.hasOwn(reloaded.values, 'environmentVariables'), false);
+  assert.equal(reloaded.secret.has(BACKUP), false);
+});
+
+test('presets sharing an endpoint are distinguished by their environment', async () => {
+  const presets = { local: localPreset, other: { ...localPreset, label: 'Other model', environment: {
+    ...localPreset.environment, ANTHROPIC_MODEL: 'other-model',
+  } } };
+  const app = await setup({ presets });
+  await app.switch('local');
+  assert.match(app.item.text, /Local model/);
+  await app.switch('other');
+  assert.match(app.item.text, /Other model/);
 });
