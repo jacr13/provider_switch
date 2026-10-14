@@ -8,6 +8,18 @@ A **preset** is a saved set of connection settings: the provider’s API address
 
 ## Install
 
+### Download a GitHub build
+
+Download `provider-switcher.vsix` from the latest [GitHub Release](https://github.com/jacr13/Provider-Switcher/releases). In VS Code, use **Extensions: Install from VSIX...** to install it, then run **Developer: Reload Window**.
+
+For development builds, open [Build VSIX in GitHub Actions](https://github.com/jacr13/Provider-Switcher/actions/workflows/build-vsix.yml), select a successful run, and download **provider-switcher-vsix** under **Artifacts** (GitHub sign-in required). Extract the ZIP to get the VSIX.
+
+Builds run on pushes to `main`, version tags (`v*`), and pull requests targeting `main`. You can also start one with **Run workflow**. Downloads are retained for 30 days.
+
+Pushing a version tag matching `package.json` (for example, `v0.3.0`) also creates a GitHub Release and attaches the VSIX. Release downloads remain available beyond the workflow artifact retention period.
+
+### Build locally
+
 You need VS Code **1.94 or later** and a trusted workspace. Install **Claude Code for VS Code** (`anthropic.claude-code`) if you want to switch Claude Code providers. It is optional for Codex-only use.
 
 To switch Codex, also run its extension, CLI, or desktop app at least once so its configuration folder exists. Provider Switcher runs inside VS Code and edits the Codex configuration shared by those applications.
