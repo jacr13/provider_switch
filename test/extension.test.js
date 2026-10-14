@@ -134,7 +134,7 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().CUSTOM, 'keep');
   assert.equal(app.values.disableLoginPrompt, true);
   assert.equal(app.values.useTerminal, false);
-  assert.ok(app.item.text.startsWith('Claude: \u{1F433} DeepSeek'), app.item.text);
+  assert.ok(app.item.text.startsWith('CLAUDE: \u{1F433} DeepSeek'), app.item.text);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
 });
@@ -146,16 +146,16 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   // The rate depends on the clock, so only its compact shape is fixed here.
   const suffix = '( \\| (Low|High|Rate unknown))?';
   const whale = '\u{1F433}';
-  assert.match(app.item.text, new RegExp(`^Claude: ${whale} DeepSeek${suffix}$`));
-  assert.match(app.codexItem.text, new RegExp(`^Codex: ${whale} DeepSeek Flash${suffix}$`));
+  assert.match(app.item.text, new RegExp(`^CLAUDE: ${whale} DeepSeek${suffix}$`));
+  assert.match(app.codexItem.text, new RegExp(`^CODEX: ${whale} DeepSeek Flash${suffix}$`));
   assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
 
   // Another endpoint keeps the rocket and gets no rate suffix at all.
   const local = await setup({ presets: { local: localPreset } });
   await local.switch('local');
-  assert.equal(local.item.text, 'Claude: $(rocket) Local model');
+  assert.equal(local.item.text, 'CLAUDE: $(rocket) Local model');
   // Restored configurations carry the service's own mark.
-  assert.equal(local.codexItem.text, 'Codex: \u{1F338} ChatGPT');
+  assert.equal(local.codexItem.text, 'CODEX: \u{1F338} ChatGPT');
 });
 
 test('Claude restores credentials and login settings, retaining unrelated edits', async () => {

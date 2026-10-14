@@ -94,9 +94,10 @@ function configuredProvider() {
 function updateStatusBar() {
   const provider = configuredProvider();
   const preset = getPresets().find(item => item.id === provider);
-  // The target comes first, so both buttons read the same way round. The whole
-  // item carries one color, so the label cannot be tinted on its own.
-  statusBarItem.text = `Claude: ${preset ? `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`
+  // The target comes first, so both buttons read the same way round. One item
+  // carries one color and plain text, so the target name can be neither tinted
+  // nor bolded on its own: uppercase is the distinction that fits here.
+  statusBarItem.text = `CLAUDE: ${preset ? `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`
     : provider === 'custom' ? '$(settings-gear) Custom' : '$(sparkle) Claude'}`;
   const colors = {
     claude: '#d97706', deepseek: '#a78bfa',
@@ -296,7 +297,7 @@ async function updateCodexStatusBar() {
   const presets = getCodexPresets();
   const provider = configuredPreset(codexConfigText || '', presets);
   const preset = presets.find(item => item.id === provider);
-  codexStatusBarItem.text = `Codex: ${preset ? `${endpointIcon(preset.baseUrl)} ${preset.label}`
+  codexStatusBarItem.text = `CODEX: ${preset ? `${endpointIcon(preset.baseUrl)} ${preset.label}`
     : provider === 'custom' ? '$(settings-gear) Custom' : `${CODEX_ICON} ChatGPT`}`;
   const colors = {
     chatgpt: '#10a37f', 'deepseek-flash': '#a78bfa', 'deepseek-v4-pro': '#8b5cf6',

@@ -181,7 +181,7 @@ The switcher does not edit `~/.claude/settings.json`, workspace files, terminal 
 
 ## Status indicator
 
-Both buttons name their target, so a glance tells them apart: the panel reads **Claude: DeepSeek** and the Codex button **Codex: DeepSeek Flash**. The panel shows its preset label when the environment matches the current configuration; changed, removed, or ambiguous preset definitions show **Claude: Custom** for non-Anthropic endpoints until you reselect a matching preset.
+Both buttons name their target, so a glance tells them apart: the panel reads **CLAUDE: DeepSeek** and the Codex button **CODEX: DeepSeek Flash**. The target is uppercase because a status bar item takes a single color and plain text, which is the only way to set the target apart from the model name. The panel shows its preset label when the environment matches the current configuration; changed, removed, or ambiguous preset definitions show **CLAUDE: Custom** for non-Anthropic endpoints until you reselect a matching preset.
 
 The Codex button behaves the same way against the configuration file: it shows the preset whose model, provider, and endpoint match, **Codex: Custom** when the file points elsewhere, and **Codex: ChatGPT** when no custom provider is selected. It is hidden entirely on machines where Codex has never run and the Codex extension is not installed.
 
