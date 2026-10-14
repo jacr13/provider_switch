@@ -135,7 +135,7 @@
             "deepseek": "#a78bfa",
             "custom": null
           },
-          "markdownDescription": "Status bar colors by preset ID, applied to the icon and model name; the `Claude:`/`Codex:` label keeps the theme color. Use `claude` for the restored Claude Code configuration, `chatgpt` for the restored Codex configuration, and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
+          "markdownDescription": "Status bar text and icon colors by preset ID. Use `claude` for the restored Claude Code configuration, `chatgpt` for the restored Codex configuration, and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
           "patternProperties": {
             "^[a-z][a-z0-9-]*$": {
               "type": ["string", "null"],

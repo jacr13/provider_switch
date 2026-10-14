@@ -34,8 +34,8 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   const hooks = {};
   const window = {
     createOutputChannel: () => ({ appendLine: line => outputLines.push(line), dispose() {} }),
-    createStatusBarItem: (id, alignment, priority) => {
-      const created = { id, alignment, priority, shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
+    createStatusBarItem: () => {
+      const created = { shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
       statusItems.push(created);
       return created;
     },
@@ -101,7 +101,6 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   return {
     values, writes, commands, window, events, secret, messages, executed, hooks, home, outputLines,
     item: statusItems[0], codexItem: statusItems[1],
-    itemLabel: statusItems[2], codexItemLabel: statusItems[3],
     read: () => fs.readFileSync(path.join(home, 'config.toml'), 'utf8'),
     env: () => Object.fromEntries((values.environmentVariables || []).map(entry => [entry.name, entry.value])),
     switch: async model => { window.showQuickPick = async () => ({ model }); await commands['provider-switcher.switchModel'](); },
@@ -135,7 +134,7 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().CUSTOM, 'keep');
   assert.equal(app.values.disableLoginPrompt, true);
   assert.equal(app.values.useTerminal, false);
-  assert.ok(app.item.text.startsWith('\u{1F433} DeepSeek'), app.item.text);
+  assert.ok(app.item.text.startsWith('\u{1F433} Claude: DeepSeek'), app.item.text);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
 });
@@ -147,37 +146,16 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   // The rate depends on the clock, so only its compact shape is fixed here.
   const suffix = '( \\| (Low|High|Rate unknown))?';
   const whale = '\u{1F433}';
-  assert.match(app.item.text, new RegExp(`^${whale} DeepSeek${suffix}$`));
-  assert.match(app.codexItem.text, new RegExp(`^${whale} DeepSeek Flash${suffix}$`));
+  assert.match(app.item.text, new RegExp(`^${whale} Claude: DeepSeek${suffix}$`));
+  assert.match(app.codexItem.text, new RegExp(`^${whale} Codex: DeepSeek Flash${suffix}$`));
   assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
 
   // Another endpoint keeps the rocket and gets no rate suffix at all.
   const local = await setup({ presets: { local: localPreset } });
   await local.switch('local');
-  assert.equal(local.item.text, '$(rocket) Local model');
+  assert.equal(local.item.text, '$(rocket) Claude: Local model');
   // Restored configurations carry the service's own mark.
-  assert.equal(local.codexItem.text, '\u{1F338} ChatGPT');
-});
-
-test('the target label is a separate uncolored item ahead of the model name', async () => {
-  const app = await setup({ codex: { config: codexFixture } });
-  await app.switch('deepseek');
-  await app.switchCodex('deepseek-flash');
-  assert.equal(app.itemLabel.text, 'Claude:');
-  assert.equal(app.codexItemLabel.text, 'Codex:');
-  // The theme colors the label: it carries no color of its own.
-  assert.equal(app.itemLabel.color, undefined);
-  assert.equal(app.codexItemLabel.color, undefined);
-  // Higher priority is further left, so each label precedes its model name and
-  // the two targets stay in their own groups.
-  assert.ok(app.itemLabel.priority > app.item.priority);
-  assert.ok(app.item.priority > app.codexItemLabel.priority);
-  assert.ok(app.codexItemLabel.priority > app.codexItem.priority);
-  // The preset color stayed on the model name, and both halves switch the same.
-  assert.equal(app.item.color, '#a78bfa');
-  assert.equal(app.codexItem.color, '#a78bfa');
-  assert.equal(app.itemLabel.command, app.item.command);
-  assert.equal(app.codexItemLabel.command, app.codexItem.command);
+  assert.equal(local.codexItem.text, '\u{1F338} Codex: ChatGPT');
 });
 
 test('Claude restores credentials and login settings, retaining unrelated edits', async () => {
@@ -608,7 +586,6 @@ test('Codex guards prevent writes and report once', async () => {
   // A machine that never ran Codex gets no Codex status entry.
   const absent = await setup({ codexInstalled: false });
   assert.equal(absent.codexItem.shown, false);
-  assert.equal(absent.codexItemLabel.shown, false);
 });
 
 test('cancelled Codex key entry leaves the configuration and secrets untouched', async () => {

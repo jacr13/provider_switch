@@ -15,9 +15,7 @@ const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
 const CODEX_BACKUP_DIR = 'backup-provider-switcher';
 let secrets;
 let statusBarItem;
-let statusBarLabelItem;
 let codexStatusBarItem;
-let codexStatusBarLabelItem;
 let output;
 let codexConfigText = null;
 let busy = false;
@@ -96,7 +94,7 @@ function configuredProvider() {
 function updateStatusBar() {
   const provider = configuredProvider();
   const preset = getPresets().find(item => item.id === provider);
-  statusBarItem.text = preset ? `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}` : provider === 'custom' ? '$(settings-gear) Custom' : '$(sparkle) Claude';
+  statusBarItem.text = preset ? `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} Claude: ${preset.label}` : provider === 'custom' ? '$(settings-gear) Claude: Custom' : '$(sparkle) Claude';
   const colors = {
     claude: '#d97706', deepseek: '#a78bfa',
     ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
@@ -110,7 +108,6 @@ function updateStatusBar() {
     statusBarItem.text += ' | ' + RATE_LABELS[rate];
   }
   statusBarItem.show();
-  statusBarLabelItem.show();
 }
 
 async function promptKey(preset) {
@@ -291,14 +288,13 @@ async function updateCodexStatusBar() {
   // Machines that never ran Codex have nothing to switch, so stay out of the way.
   if (codexConfigText === null && !vscode.extensions.getExtension('openai.chatgpt')) {
     codexStatusBarItem.hide();
-    codexStatusBarLabelItem.hide();
     return;
   }
   const presets = getCodexPresets();
   const provider = configuredPreset(codexConfigText || '', presets);
   const preset = presets.find(item => item.id === provider);
-  codexStatusBarItem.text = preset ? `${endpointIcon(preset.baseUrl)} ${preset.label}`
-    : provider === 'custom' ? '$(settings-gear) Custom' : `${CODEX_ICON} ChatGPT`;
+  codexStatusBarItem.text = preset ? `${endpointIcon(preset.baseUrl)} Codex: ${preset.label}`
+    : provider === 'custom' ? '$(settings-gear) Codex: Custom' : `${CODEX_ICON} Codex: ChatGPT`;
   const colors = {
     chatgpt: '#10a37f', 'deepseek-flash': '#a78bfa', 'deepseek-v4-pro': '#8b5cf6',
     ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
@@ -311,7 +307,6 @@ async function updateCodexStatusBar() {
     codexStatusBarItem.text += ' | ' + RATE_LABELS[rate];
   }
   codexStatusBarItem.show();
-  codexStatusBarLabelItem.show();
 }
 
 async function canConfigureCodex() {
@@ -491,25 +486,12 @@ async function activate(context) {
   output = vscode.window.createOutputChannel('Provider Switcher');
   context.subscriptions.push(output);
   const alignment = cfg.get('statusBarAlignment') === 'left' ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right;
-  statusBarItem = vscode.window.createStatusBarItem('claude-code-provider', alignment, 101);
+  statusBarItem = vscode.window.createStatusBarItem('claude-code-provider', alignment, 100);
   statusBarItem.command = 'provider-switcher.switchModel';
   context.subscriptions.push(statusBarItem);
   codexStatusBarItem = vscode.window.createStatusBarItem('codex-provider', alignment, 99);
   codexStatusBarItem.command = 'provider-switcher.switchCodexModel';
   context.subscriptions.push(codexStatusBarItem);
-  // A status bar item carries one color, so naming the target gets its own item:
-  // "Claude:" keeps the theme color while the model name keeps the preset color.
-  // Higher priority sits further left, which is what puts the label first.
-  statusBarLabelItem = vscode.window.createStatusBarItem('claude-code-provider-target', alignment, 102);
-  statusBarLabelItem.text = 'Claude:';
-  statusBarLabelItem.name = 'Claude';
-  statusBarLabelItem.command = 'provider-switcher.switchModel';
-  context.subscriptions.push(statusBarLabelItem);
-  codexStatusBarLabelItem = vscode.window.createStatusBarItem('codex-provider-target', alignment, 100);
-  codexStatusBarLabelItem.text = 'Codex:';
-  codexStatusBarLabelItem.name = 'Codex';
-  codexStatusBarLabelItem.command = 'provider-switcher.switchCodexModel';
-  context.subscriptions.push(codexStatusBarLabelItem);
   updateStatusBar();
   await updateCodexStatusBar();
   await keepCodexCopyOnActivation();
