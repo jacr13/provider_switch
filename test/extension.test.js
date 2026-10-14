@@ -520,6 +520,27 @@ test('Codex restore returns the exact original file and removes only its own cat
   assert.ok(!app.secret.has(CODEX_BACKUP));
 });
 
+test('a copy of the original configuration is kept beside the file', async () => {
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
+  app.window.showInputBox = async () => 'sk-codex';
+  const copy = path.join(app.home, 'backup-provider-switcher', 'config.toml');
+  await app.switchCodex('deepseek-flash');
+  assert.equal(fs.readFileSync(copy, 'utf8'), codexFixture);
+  assert.ok(app.outputLines.some(line => line.includes('backup-provider-switcher')));
+  // Restoring keeps the copy, and the next baseline never overwrites it.
+  await app.switchCodex('chatgpt');
+  assert.equal(fs.readFileSync(copy, 'utf8'), codexFixture);
+  fs.writeFileSync(copy, 'kept');
+  await app.switchCodex('deepseek-v4-pro');
+  assert.equal(fs.readFileSync(copy, 'utf8'), 'kept');
+
+  // A machine where Codex never wrote a file has nothing to copy.
+  const fresh = await setup({ secret: new Map() });
+  fresh.window.showInputBox = async () => 'sk-codex';
+  await fresh.switchCodex('deepseek-flash');
+  assert.equal(fs.existsSync(path.join(fresh.home, 'backup-provider-switcher')), false);
+});
+
 test('Codex guards prevent writes and report once', async () => {
   const untrusted = await setup({ trusted: false, codex: { config: codexFixture } });
   await untrusted.switchCodex('deepseek-flash');

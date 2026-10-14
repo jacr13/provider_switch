@@ -148,7 +148,7 @@ Run **Provider Switcher: Configure Codex Presets** and edit the `codex` section 
 
 The built-in `deepseek-flash` and `deepseek-v4-pro` presets merge with your overrides; `"deepseek-v4-pro": null` hides one. Both point at the DeepSeek endpoint, so they share one saved key and switching between models never prompts again. Invalid presets are skipped with a warning when you open the picker. After editing, select the preset again and reload the window.
 
-DeepSeek's own setup script and this switcher both edit `~/.codex/config.toml`, but they keep separate backups. If you installed DeepSeek with that script, run its **9** option to undo it before using this switcher, or **ChatGPT** here will return you to the script's configuration rather than to a stock Codex setup.
+DeepSeek's own setup script and this switcher both edit `~/.codex/config.toml`, but they keep separate backups in their own folders (`backup-deepseek` and `backup-provider-switcher`). If you installed DeepSeek with that script, run its **9** option to undo it before using this switcher, or **ChatGPT** here will return you to the script's configuration rather than to a stock Codex setup.
 
 ## What changes
 
@@ -164,7 +164,7 @@ The bundled DeepSeek preset uses `https://api.deepseek.com/anthropic`, with `dee
 
 Before the first preset switch, the original environment and login preference are backed up in SecretStorage. Switching between presets and replacing keys preserve that baseline. Custom variables are tracked as each preset takes ownership, so removing a preset or reloading the extension still allows restoration. If your original configuration used another provider, switching back restores that provider. An external provider configuration without a saved backup is left intact with an explanation.
 
-For the Codex panel, the switcher edits exactly one file: `~/.codex/config.toml` (or `$CODEX_HOME/config.toml`). Before the first switch it saves the file's original bytes and restores them when you choose **ChatGPT**. It never touches Codex session data, plugins, MCP server definitions, or the model catalog once that file exists. Switching is refused while Codex is configured to run inside WSL, where the file lives elsewhere, and while `~/.codex` has not been created yet.
+For the Codex panel, the switcher edits exactly one file: `~/.codex/config.toml` (or `$CODEX_HOME/config.toml`). Before the first switch it saves the file's original bytes and restores them when you choose **ChatGPT**, and it leaves a plain copy at `~/.codex/backup-provider-switcher/config.toml` so you can put the original back by hand. That copy is written once and never overwritten, and restoring does not remove it; delete the folder if you want a fresh one. It never touches Codex session data, plugins, MCP server definitions, or the model catalog once that file exists. Switching is refused while Codex is configured to run inside WSL, where the file lives elsewhere, and while `~/.codex` has not been created yet.
 
 The switcher does not edit `~/.claude/settings.json`, workspace files, terminal settings, permission modes, or Claude's installed files. Conflicting workspace settings and custom process wrappers are reported before changing providers. Failed updates attempt to restore the previous settings.
 
@@ -173,6 +173,7 @@ The switcher does not edit `~/.claude/settings.json`, workspace files, terminal 
 - Preset API keys and the original configuration backups use VS Code SecretStorage. **One key is stored per endpoint host and shared by every preset that uses it, on both sides**, so the DeepSeek key you enter for the panel is also what Codex uses. Keys saved by earlier builds were kept per preset; the switcher adopts them under the shared name the first time a preset uses one.
 - **While a preset is selected, a copy of its key is stored as plaintext in the local VS Code user setting `claudeCode.environmentVariables`.** This is how the Claude Code extension receives it. Do not share or commit your user settings. That setting is machine-scoped in the official extension.
 - **A Codex preset's key is likewise written as plaintext into `~/.codex/config.toml`** while it is selected, which is how Codex accepts it. Do not share that file. Choosing **ChatGPT**, or switching to a preset without a key, removes it from the file.
+- The copy in `~/.codex/backup-provider-switcher/` is a plaintext duplicate of the file as it was before the first switch. If that configuration held a credential, so does the copy.
 - Switching back removes the switcher's preset entries and restores the saved values. Settings backups and already-running processes may retain old credentials.
 - **Provider Switcher: Reset Preset API Key** and **Reset Codex API Key** ask which preset to update. Because the key is shared, replacing it also refreshes whichever preset is configured with it on either side; a replacement for a preset on a different endpoint is stored and used on the next switch. Cancel keeps the existing key. Reload after replacing an active key.
 - Switch back to Claude before disabling or uninstalling the switcher: disabling an extension does not undo user settings.

@@ -2,6 +2,7 @@
 
 const vscode = require('vscode');
 const fs = require('node:fs/promises');
+const path = require('node:path');
 const { getDeepseekRate } = require('./deepseek-rate');
 
 const { resolveClaudePresets, resolveCodexPresets, splitPresets, isDeepseekEndpoint } = require('./presets');
@@ -11,6 +12,7 @@ const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = re
 const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
+const CODEX_BACKUP_DIR = 'backup-provider-switcher';
 let secrets;
 let statusBarItem;
 let codexStatusBarItem;
@@ -357,6 +359,26 @@ async function writeCodexCatalog(home, backup) {
   return true;
 }
 
+// DeepSeek's own setup script keeps a plain copy of the file it changed, and the
+// same copy outlives this extension: secret storage is gone after an uninstall,
+// while a file next to the original can always be copied back by hand. It is
+// written once, before the first switch, and never overwritten afterwards.
+async function copyCodexBackup(home, config) {
+  if (config === null) return;
+  const target = path.join(home, CODEX_BACKUP_DIR, 'config.toml');
+  try {
+    await fs.access(target);
+    return;
+  } catch { /* no copy kept yet */ }
+  try {
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, config);
+    output.appendLine(`Kept the original ${configPath(home)} at ${target}`);
+  } catch {
+    output.appendLine(`Could not copy the original configuration to ${target}`);
+  }
+}
+
 async function setCodexPreset(provider, replacementKey) {
   if (!await canConfigureCodex()) return;
   const home = codexHome(), file = configPath(home);
@@ -383,7 +405,10 @@ async function setCodexPreset(provider, replacementKey) {
   const key = preset.apiKey ? replacementKey || await storedKey(preset) || await promptCodexKey(preset) : null;
   if (preset.apiKey && !key) return;
   // Persist ownership before writing, so a partial failure stays recoverable.
-  if (!saved) await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
+  if (!saved) {
+    await copyCodexBackup(home, current);
+    await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
+  }
   let createdCatalog = false;
   try {
     createdCatalog = await writeCodexCatalog(home, backup);
