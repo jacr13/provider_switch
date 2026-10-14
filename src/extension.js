@@ -14,6 +14,7 @@ const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json'
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
 const CODEX_BACKUP_DIR = 'backup-provider-switcher';
+const CODEX_BACKUP_FILE = 'codex-config.toml';
 const PANEL_BACKUP_FILE = 'claude-panel.json';
 let secrets;
 let statusBarItem;
@@ -395,23 +396,28 @@ async function writeCodexCatalog(home, backup) {
   return true;
 }
 
-// DeepSeek's own setup script keeps a plain copy of the file it changed, and the
-// same copy outlives this extension: secret storage is gone after an uninstall,
-// while a file next to the original can always be copied back by hand. It holds
-// the file as it was before the first switch and is never overwritten.
+// DeepSeek's own setup script keeps a plain copy of the file it changed, so one
+// copy sits beside it, and a second sits with the panel's copy so that one folder
+// holds both originals and either survives losing the other.
+const codexCopyPaths = home => [
+  path.join(home, CODEX_BACKUP_DIR, 'config.toml'),
+  path.join(backupHome(), CODEX_BACKUP_FILE),
+];
+
+// The copies outlive this extension: secret storage is gone after an uninstall,
+// while a file next to the original can always be copied back by hand. They hold
+// the file as it was before the first switch and are never overwritten.
 async function copyCodexBackup(home, config) {
   if (config === null) return;
-  const target = path.join(home, CODEX_BACKUP_DIR, 'config.toml');
-  try {
-    await fs.access(target);
-    return;
-  } catch { /* no copy kept yet */ }
-  try {
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, config);
-    output.appendLine(`Kept the original ${configPath(home)} at ${target}`);
-  } catch {
-    output.appendLine(`Could not copy the original configuration to ${target}`);
+  for (const target of codexCopyPaths(home)) {
+    if (await readText(target) !== undefined) continue;
+    try {
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, config);
+      output.appendLine(`Kept the original ${configPath(home)} at ${target}`);
+    } catch {
+      output.appendLine(`Could not copy the original configuration to ${target}`);
+    }
   }
 }
 
@@ -442,32 +448,38 @@ function looksLikePreset(environment) {
     name === preset.apiKeyEnv || environment[name] === value));
 }
 
+async function adoptCodexCopy() {
+  if (await secrets.get(CODEX_BACKUP_KEY)) return;
+  const home = codexHome(), catalog = `${JSON.stringify(DEEPSEEK_CODEX_CATALOG, null, 2)}\n`;
+  for (const file of codexCopyPaths(home)) {
+    const saved = await readText(file);
+    if (saved === undefined) continue;
+    const active = configuredPreset(saved, getCodexPresets());
+    if (active !== 'chatgpt' && active !== 'custom') continue;
+    const owned = await readText(catalogPath(home)) === catalog;
+    await secrets.store(CODEX_BACKUP_KEY, JSON.stringify({ config: saved, catalogCreated: owned }));
+    output.appendLine(`Adopted the Codex configuration kept at ${file}`);
+    return;
+  }
+}
+
+async function adoptPanelCopy() {
+  if (await secrets.get(BACKUP_KEY)) return;
+  const saved = await readText(panelBackupPath());
+  if (saved === undefined) return;
+  try {
+    const backup = JSON.parse(saved);
+    if (typeof backup !== 'object' || backup === null) return;
+    const environment = Object.fromEntries((backup.environmentVariables || []).map(entry => [entry.name, entry.value]));
+    if (looksLikePreset(environment)) return;
+    await secrets.store(BACKUP_KEY, saved);
+    output.appendLine(`Adopted the Claude Code settings kept at ${panelBackupPath()}`);
+  } catch { /* an unreadable copy is not a record of anything */ }
+}
+
 async function adoptFileBackups() {
-  if (!await secrets.get(CODEX_BACKUP_KEY)) {
-    const home = codexHome();
-    const saved = await readText(path.join(home, CODEX_BACKUP_DIR, 'config.toml'));
-    if (saved !== undefined) {
-      const active = configuredPreset(saved, getCodexPresets());
-      if (active === 'chatgpt' || active === 'custom') {
-        const catalog = `${JSON.stringify(DEEPSEEK_CODEX_CATALOG, null, 2)}\n`;
-        const owned = await readText(catalogPath(home)) === catalog;
-        await secrets.store(CODEX_BACKUP_KEY, JSON.stringify({ config: saved, catalogCreated: owned }));
-        output.appendLine('Adopted the Codex configuration kept beside it');
-      }
-    }
-  }
-  if (!await secrets.get(BACKUP_KEY)) {
-    const saved = await readText(panelBackupPath());
-    if (saved === undefined) return;
-    try {
-      const backup = JSON.parse(saved);
-      if (typeof backup !== 'object' || backup === null) return;
-      const environment = Object.fromEntries((backup.environmentVariables || []).map(entry => [entry.name, entry.value]));
-      if (looksLikePreset(environment)) return;
-      await secrets.store(BACKUP_KEY, saved);
-      output.appendLine('Adopted the Claude Code settings kept beside the extension');
-    } catch { /* an unreadable copy is not a record of anything */ }
-  }
+  await adoptCodexCopy();
+  await adoptPanelCopy();
 }
 
 // The saved original is gone, so the file can only be returned to Codex by
@@ -485,10 +497,13 @@ async function detachCodex(home, current) {
     await fs.rm(catalogPath(home), { force: true });
     output.appendLine('  Removed the model catalog it wrote');
   }
-  const folder = path.join(home, CODEX_BACKUP_DIR);
-  if (await readText(path.join(folder, 'config.toml')) === current) {
-    await fs.rm(folder, { recursive: true, force: true });
-    output.appendLine('  Removed the copy it kept, which held the same configuration');
+  // The copy beside the file sits in a folder of its own; the one beside the
+  // panel's copy must not take that folder down with it.
+  const [beside, central] = codexCopyPaths(home);
+  for (const file of [beside, central]) {
+    if (await readText(file) !== current) continue;
+    await fs.rm(file === beside ? path.dirname(file) : file, { recursive: true, force: true });
+    output.appendLine(`  Removed the copy it kept at ${file}`);
   }
   await offerCodexReload('Codex');
 }

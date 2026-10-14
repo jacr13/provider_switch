@@ -529,30 +529,37 @@ test('Codex restore returns the exact original file and removes only its own cat
   assert.ok(!app.secret.has(CODEX_BACKUP));
 });
 
-test('a copy of the original configuration is kept beside the file', async () => {
+test('a copy of the original configuration is kept in both places', async () => {
   const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
   app.window.showInputBox = async () => 'sk-codex';
   const copy = path.join(app.home, 'backup-provider-switcher', 'config.toml');
+  const central = path.join(app.backupHome, 'codex-config.toml');
   await app.switchCodex('deepseek-flash');
   assert.equal(fs.readFileSync(copy, 'utf8'), codexFixture);
+  assert.equal(fs.readFileSync(central, 'utf8'), codexFixture);
   assert.ok(app.outputLines.some(line => line.includes('backup-provider-switcher')));
-  // Restoring keeps the copy, and the next baseline never overwrites it.
+  // Restoring keeps the copies, and the next baseline never overwrites them.
   await app.switchCodex('chatgpt');
   assert.equal(fs.readFileSync(copy, 'utf8'), codexFixture);
+  assert.equal(fs.readFileSync(central, 'utf8'), codexFixture);
   fs.writeFileSync(copy, 'kept');
+  fs.writeFileSync(central, 'kept too');
   await app.switchCodex('deepseek-v4-pro');
   assert.equal(fs.readFileSync(copy, 'utf8'), 'kept');
+  assert.equal(fs.readFileSync(central, 'utf8'), 'kept too');
 
   // A machine where Codex never wrote a file has nothing to copy.
   const fresh = await setup({ secret: new Map() });
   fresh.window.showInputBox = async () => 'sk-codex';
   await fresh.switchCodex('deepseek-flash');
   assert.equal(fs.existsSync(path.join(fresh.home, 'backup-provider-switcher')), false);
+  assert.equal(fs.existsSync(path.join(fresh.backupHome, 'codex-config.toml')), false);
 });
 
 test('the copy is kept on activation, before anything switches', async () => {
   const app = await setup({ codex: { config: codexFixture } });
   assert.equal(fs.readFileSync(path.join(app.home, 'backup-provider-switcher', 'config.toml'), 'utf8'), codexFixture);
+  assert.equal(fs.readFileSync(path.join(app.backupHome, 'codex-config.toml'), 'utf8'), codexFixture);
   // Activation still writes no settings of its own.
   assert.equal(app.writes.length, 0);
   assert.match(app.codexItem.text, /ChatGPT/);
@@ -569,6 +576,7 @@ test('no copy is kept of a file that already selects one of our presets', async 
   const app = await setup({ codex: { config: first.read() }, secret: new Map() });
   // That is this extension's own output, not the configuration Codex came with.
   assert.equal(fs.existsSync(path.join(app.home, 'backup-provider-switcher')), false);
+  assert.equal(fs.existsSync(path.join(app.backupHome, 'codex-config.toml')), false);
   // A configuration the user built themselves is still worth keeping a copy of.
   const own = await setup({ codex: { config: 'model = "gpt-6-astra"\nmodel_provider = "mycorp"\n\n[model_providers.mycorp]\nbase_url = "https://proxy.example/"\n' } });
   assert.ok(fs.existsSync(path.join(own.home, 'backup-provider-switcher', 'config.toml')));
@@ -592,6 +600,9 @@ test('Codex is handed back to its own sign-in when the saved original is gone', 
   assert.equal(app.writes.length, 0);
 
   app.hooks.warning = () => 'Remove the settings it wrote';
+  // The panel's copy shares the folder the second Codex copy sits in, and it
+  // must outlive the detach.
+  fs.writeFileSync(path.join(app.backupHome, 'claude-panel.json'), '{"environmentVariables":[]}');
   await app.switchCodex('chatgpt');
   const written = app.read();
   assert.ok(!written.includes('model_provider'));
@@ -604,6 +615,8 @@ test('Codex is handed back to its own sign-in when the saved original is gone', 
   assert.equal(fs.existsSync(path.join(app.home, 'models.json')), false);
   // The copy held the same configuration, so it was the extension's own and goes too.
   assert.equal(fs.existsSync(path.join(app.home, 'backup-provider-switcher')), false);
+  assert.equal(fs.existsSync(path.join(app.backupHome, 'codex-config.toml')), false);
+  assert.ok(fs.existsSync(path.join(app.backupHome, 'claude-panel.json')));
   assert.match(app.codexItem.text, /ChatGPT/);
   assert.ok(app.messages.some(message => /no record of the file/.test(message)));
 });
@@ -637,6 +650,14 @@ test('a reinstall adopts the copies on disk and switches back', async () => {
   await codex.switchCodex('chatgpt');
   assert.equal(codex.read(), codexFixture);
   assert.ok(!codex.messages.some(message => /no record of the file/.test(message)));
+
+  // Either copy is enough on its own: here only the one beside the panel's is left.
+  const central = fs.mkdtempSync(path.join(os.tmpdir(), 'switcher-backup-test-'));
+  fs.writeFileSync(path.join(central, 'codex-config.toml'), codexFixture);
+  const alone = await setup({ backupHome: central, codex: { config: switched }, secret: new Map() });
+  assert.ok(alone.outputLines.some(line => line.includes('Adopted the Codex configuration')));
+  await alone.switchCodex('chatgpt');
+  assert.equal(alone.read(), codexFixture);
 
   // The panel: the copy the previous install wrote is adopted on the next one.
   const backupHome = fs.mkdtempSync(path.join(os.tmpdir(), 'switcher-backup-test-'));
