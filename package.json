@@ -12,11 +12,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jacr13/claude-code-switcher"
+    "url": "https://github.com/jacr13/Provider-Switcher"
   },
-  "homepage": "https://github.com/jacr13/claude-code-switcher#readme",
+  "homepage": "https://github.com/jacr13/Provider-Switcher#readme",
   "bugs": {
-    "url": "https://github.com/jacr13/claude-code-switcher/issues"
+    "url": "https://github.com/jacr13/Provider-Switcher/issues"
   },
   "engines": {
     "vscode": "^1.94.0"
