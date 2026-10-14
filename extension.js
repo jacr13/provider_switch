@@ -1,12 +1,20 @@
 'use strict';
 
 const vscode = require('vscode');
+const fs = require('node:fs/promises');
 const { getDeepseekRate } = require('./deepseek-rate');
 
 const { resolvePresets, secretKey, BASE_MANAGED_KEYS, DEFAULT_PRESETS } = require('./presets');
+const { resolveCodexPresets, codexSecretKey, DEFAULT_CODEX_BASE_URL } = require('./presets');
+const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = require('./codex-config');
+const CODEX_CATALOG = require('./codex-models.json');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
+const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
 let secrets;
 let statusBarItem;
+let codexStatusBarItem;
+let output;
+let codexConfigText = null;
 let busy = false;
 
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
@@ -14,7 +22,7 @@ const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 
 function getPresets(notify = false) {
   // Read user settings only: a project must not redirect a saved provider key.
-  const config = vscode.workspace.getConfiguration('claudeCodeSwitcher').inspect('presets')?.globalValue;
+  const config = vscode.workspace.getConfiguration('providerSwitcher').inspect('presets')?.globalValue;
   const { presets, errors } = resolvePresets(config);
   if (notify && errors.length) vscode.window.showWarningMessage(errors[0]);
   return presets;
@@ -37,7 +45,7 @@ function updateStatusBar() {
   statusBarItem.text = preset ? `$(rocket) ${preset.label}` : provider === 'custom' ? '$(settings-gear) Custom provider' : '$(sparkle) Claude';
   const colors = {
     claude: '#d97706', deepseek: '#a78bfa',
-    ...vscode.workspace.getConfiguration('claudeCodeSwitcher').get('statusBarColors', {}),
+    ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
   };
   const color = colors[provider];
   // Clear the previous preset's color when the theme default is selected.
@@ -186,7 +194,7 @@ async function switchModel() {
   const picked = await vscode.window.showQuickPick([
     { label: '$(sparkle) Claude', description: 'Restore your previous Claude Code configuration', model: 'claude' },
     ...getPresets(true).map(preset => ({ label: `$(rocket) ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
-  ], { title: 'Claude Code Switcher: Switch Preset', placeHolder: 'Choose a preset for the Claude Code extension' });
+  ], { title: 'Provider Switcher: Switch Preset', placeHolder: 'Choose a preset for the Claude Code extension' });
   if (picked) await setProvider(picked.model);
 }
 
@@ -195,7 +203,7 @@ async function resetApiKey(presetId) {
   const presets = getPresets(true).filter(preset => preset.apiKeyEnv !== 'none');
   const picked = presetId ? { model: presetId } : await vscode.window.showQuickPick(
     presets.map(preset => ({ label: preset.label, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
-    { title: 'Claude Code Switcher: Reset Preset API Key', placeHolder: 'Choose the preset whose key you want to replace' },
+    { title: 'Provider Switcher: Reset Preset API Key', placeHolder: 'Choose the preset whose key you want to replace' },
   );
   const preset = presets.find(item => item.id === picked?.model);
   if (!preset) return;
@@ -206,34 +214,210 @@ async function resetApiKey(presetId) {
   else vscode.window.showInformationMessage(`${preset.label} key saved for the next provider switch.`);
 }
 
-function guarded(action) {
+// ---- Codex: switching rewrites ~/.codex/config.toml, which the Codex
+// extension, CLI, and desktop app all read. Everything outside the keys this
+// switcher owns is preserved byte for byte.
+
+function getCodexPresets(notify = false) {
+  // Read user settings only: a project must not redirect a saved provider key.
+  const config = vscode.workspace.getConfiguration('providerSwitcher').inspect('codexPresets')?.globalValue;
+  const { presets, errors } = resolveCodexPresets(config);
+  if (notify && errors.length) vscode.window.showWarningMessage(errors[0]);
+  return presets;
+}
+
+async function readCodexConfig() {
+  try { return await fs.readFile(configPath(codexHome()), 'utf8'); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+}
+
+async function updateCodexStatusBar() {
+  try { codexConfigText = await readCodexConfig(); }
+  catch { /* unreadable for now: keep showing the last known state */ }
+  // Machines that never ran Codex have nothing to switch, so stay out of the way.
+  if (codexConfigText === null && !vscode.extensions.getExtension('openai.chatgpt')) {
+    codexStatusBarItem.hide();
+    return;
+  }
+  const presets = getCodexPresets();
+  const provider = configuredPreset(codexConfigText || '', presets);
+  const preset = presets.find(item => item.id === provider);
+  codexStatusBarItem.text = preset ? `$(rocket) Codex: ${preset.label}`
+    : provider === 'custom' ? '$(settings-gear) Codex: Custom' : '$(sparkle) Codex: ChatGPT';
+  const colors = {
+    chatgpt: '#10a37f', 'deepseek-flash': '#a78bfa', 'deepseek-v4-pro': '#8b5cf6',
+    ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
+  };
+  const color = colors[provider];
+  codexStatusBarItem.color = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : undefined;
+  codexStatusBarItem.name = 'Codex Provider';
+  if (preset && preset.baseUrl.replace(/\/+$/, '') === DEFAULT_CODEX_BASE_URL.replace(/\/+$/, '')) {
+    const rate = getDeepseekRate();
+    codexStatusBarItem.text += ' | ' + { peak: 'Peak', 'off-peak': 'Off-peak', unknown: 'Rate unknown' }[rate];
+  }
+  codexStatusBarItem.show();
+}
+
+async function canConfigureCodex() {
+  if (!vscode.workspace.isTrusted) {
+    vscode.window.showWarningMessage('Trust this workspace before changing Codex settings.');
+    return false;
+  }
+  const home = codexHome();
+  try { await fs.access(home); }
+  catch {
+    vscode.window.showWarningMessage(`Codex has not created its configuration directory yet (${home}). Run Codex once, then try again.`);
+    return false;
+  }
+  if (vscode.workspace.getConfiguration('chatgpt').get('runCodexInWindowsSubsystemForLinux')) {
+    vscode.window.showWarningMessage('Codex is set to run inside WSL, where its configuration lives elsewhere. Turn that setting off before switching its provider from here.');
+    return false;
+  }
+  return true;
+}
+
+async function promptCodexKey(preset) {
+  const key = await vscode.window.showInputBox({
+    title: `${preset.label} key for Codex`,
+    prompt: `Endpoint: ${preset.baseUrl}. Saved in SecretStorage and written to ${configPath(codexHome())} while selected. Do not share that file.`,
+    password: true, ignoreFocusOut: true,
+    validateInput: value => value?.trim() ? null : 'API key cannot be empty',
+  });
+  if (!key?.trim()) return null;
+  await secrets.store(codexSecretKey(preset), key.trim());
+  return key.trim();
+}
+
+async function offerCodexReload(label) {
+  await updateCodexStatusBar();
+  const answer = await vscode.window.showInformationMessage(
+    `${label} configured for Codex. Finish active work, then reload this window and start a new Codex panel to apply it.`,
+    'Reload Window',
+  );
+  if (answer === 'Reload Window') await vscode.commands.executeCommand('workbench.action.reloadWindow');
+}
+
+// Codex ships a catalog describing its models; without it the client falls back
+// to generic metadata. An existing file is never touched.
+async function writeCodexCatalog(home, backup) {
+  try { await fs.access(catalogPath(home)); return false; }
+  catch { /* not created by us yet */ }
+  await fs.writeFile(catalogPath(home), `${JSON.stringify(CODEX_CATALOG, null, 2)}\n`);
+  backup.catalogCreated = true;
+  await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
+  return true;
+}
+
+async function setCodexPreset(provider, replacementKey) {
+  if (!await canConfigureCodex()) return;
+  const home = codexHome(), file = configPath(home);
+  const current = await readCodexConfig();
+  const saved = await secrets.get(CODEX_BACKUP_KEY);
+  const backup = saved ? JSON.parse(saved) : { config: current, catalogCreated: false };
+
+  if (provider === 'chatgpt') {
+    if (!saved && configuredPreset(current || '', getCodexPresets()) !== 'chatgpt') {
+      vscode.window.showWarningMessage('Codex was configured outside the switcher, so there is no saved configuration to restore. Review its configuration file first.');
+      return;
+    }
+    if (backup.config === null) await fs.rm(file, { force: true });
+    else await fs.writeFile(file, backup.config);
+    if (backup.catalogCreated) await fs.rm(catalogPath(home), { force: true });
+    if (saved) await secrets.delete(CODEX_BACKUP_KEY);
+    output.appendLine(`Codex -> ChatGPT (${file} restored)`);
+    await offerCodexReload('ChatGPT');
+    return;
+  }
+
+  const preset = getCodexPresets(true).find(item => item.id === provider);
+  if (!preset) return;
+  const key = preset.apiKey ? replacementKey || await secrets.get(codexSecretKey(preset)) || await promptCodexKey(preset) : null;
+  if (preset.apiKey && !key) return;
+  // Persist ownership before writing, so a partial failure stays recoverable.
+  if (!saved) await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
+  let createdCatalog = false;
+  try {
+    createdCatalog = await writeCodexCatalog(home, backup);
+    const { text, report } = applyPreset(current || '', preset, { apiKey: key, catalogPath: catalogPath(home) });
+    await fs.writeFile(file, text);
+    output.appendLine(`Codex -> ${preset.label} (${file})`);
+    report.forEach(line => output.appendLine(`  ${line}`));
+  } catch (error) {
+    if (createdCatalog) await fs.rm(catalogPath(home), { force: true });
+    if (!saved) await secrets.delete(CODEX_BACKUP_KEY);
+    throw error;
+  }
+  await offerCodexReload(preset.label);
+}
+
+async function switchCodexModel() {
+  const picked = await vscode.window.showQuickPick([
+    { label: '$(sparkle) ChatGPT', description: 'Restore the Codex configuration saved before the first switch', model: 'chatgpt' },
+    ...getCodexPresets(true).map(preset => ({ label: `$(rocket) ${preset.label}`, description: preset.model, model: preset.id })),
+  ], { title: 'Provider Switcher: Switch Codex Model', placeHolder: 'Choose the model for the Codex extension' });
+  if (picked) await setCodexPreset(picked.model);
+}
+
+async function resetCodexApiKey(provider) {
+  if (!await canConfigureCodex()) return;
+  const presets = getCodexPresets(true).filter(preset => preset.apiKey);
+  const picked = provider ? { model: provider } : await vscode.window.showQuickPick(
+    presets.map(preset => ({ label: preset.label, description: preset.model, model: preset.id })),
+    { title: 'Provider Switcher: Reset Codex API Key', placeHolder: 'Choose the preset whose key you want to replace' },
+  );
+  const preset = presets.find(item => item.id === picked?.model);
+  if (!preset) return;
+  const active = configuredPreset(codexConfigText || '', getCodexPresets()) === preset.id;
+  const key = await promptCodexKey(preset);
+  if (!key) return;
+  if (active) await setCodexPreset(preset.id, key);
+  else vscode.window.showInformationMessage(`${preset.label} key saved for the next Codex switch.`);
+}
+
+function guarded(action, failure = 'Could not update the Claude Code provider. Check that user settings are writable and SecretStorage is available, then try again.') {
   return async () => {
     if (busy) return;
     busy = true;
     try { await action(); }
-    catch { vscode.window.showErrorMessage('Could not update the Claude Code provider. Check that user settings are writable and SecretStorage is available, then try again.'); }
-    finally { busy = false; updateStatusBar(); }
+    catch { vscode.window.showErrorMessage(failure); }
+    finally { busy = false; updateStatusBar(); await updateCodexStatusBar(); }
   };
 }
 
-function activate(context) {
+const CODEX_FAILURE = 'Could not update the Codex configuration. Check that its configuration file is writable and SecretStorage is available, then try again.';
+
+async function activate(context) {
   secrets = context.secrets;
-  const cfg = vscode.workspace.getConfiguration('claudeCodeSwitcher');
-  statusBarItem = vscode.window.createStatusBarItem('claude-code-provider', cfg.get('statusBarAlignment') === 'left' ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = 'claude-code-switcher.switchModel';
+  const cfg = vscode.workspace.getConfiguration('providerSwitcher');
+  output = vscode.window.createOutputChannel('Provider Switcher');
+  context.subscriptions.push(output);
+  const alignment = cfg.get('statusBarAlignment') === 'left' ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right;
+  statusBarItem = vscode.window.createStatusBarItem('claude-code-provider', alignment, 100);
+  statusBarItem.command = 'provider-switcher.switchModel';
   context.subscriptions.push(statusBarItem);
+  codexStatusBarItem = vscode.window.createStatusBarItem('codex-provider', alignment, 99);
+  codexStatusBarItem.command = 'provider-switcher.switchCodexModel';
+  context.subscriptions.push(codexStatusBarItem);
   updateStatusBar();
-  const timer = setInterval(updateStatusBar, 1000);
+  await updateCodexStatusBar();
+  const timer = setInterval(() => { updateStatusBar(); void updateCodexStatusBar(); }, 1000);
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
-  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-    if (event.affectsConfiguration('claudeCode') || event.affectsConfiguration('claudeCodeSwitcher')) updateStatusBar();
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
+    if (event.affectsConfiguration('claudeCode') || event.affectsConfiguration('providerSwitcher')) {
+      updateStatusBar();
+      await updateCodexStatusBar();
+    }
   }));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.switchModel', guarded(switchModel)));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.resetApiKey', guarded(() => resetApiKey())));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.switchModel', guarded(switchModel)));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.resetApiKey', guarded(() => resetApiKey())));
   // Keep a direct DeepSeek key-reset command for custom keybindings.
-  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.resetDeepseekApiKey', guarded(() => resetApiKey('deepseek'))));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-code-switcher.configurePresets', () =>
-    vscode.commands.executeCommand('workbench.action.openSettings', 'claudeCodeSwitcher.presets')));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.resetDeepseekApiKey', guarded(() => resetApiKey('deepseek'))));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.configurePresets', () =>
+    vscode.commands.executeCommand('workbench.action.openSettings', 'providerSwitcher.presets')));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.switchCodexModel', guarded(switchCodexModel, CODEX_FAILURE)));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.resetCodexApiKey', guarded(() => resetCodexApiKey(), CODEX_FAILURE)));
+  context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.configureCodexPresets', () =>
+    vscode.commands.executeCommand('workbench.action.openSettings', 'providerSwitcher.codexPresets')));
 }
 
 function deactivate() {}

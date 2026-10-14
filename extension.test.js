@@ -3,17 +3,35 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
-const { resolvePresets, secretKey } = require('./presets');
+const os = require('node:os');
+const path = require('node:path');
+const { resolvePresets, secretKey, resolveCodexPresets, codexSecretKey } = require('./presets');
 
 const BACKUP = 'claudeExtensionSettingsBackup.v1';
+const CODEX_BACKUP = 'codexConfigBackup.v1';
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
-async function setup({ initial = {}, trusted = true, installed = true, overrides = {}, presets, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]) } = {}) {
+// Every test reads and writes Codex configuration inside its own home directory.
+function codexHome({ config, catalog = new Map(), wsl = false } = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-switcher-test-'));
+  process.env.CODEX_HOME = home;
+  if (config !== undefined) fs.writeFileSync(path.join(home, 'config.toml'), config);
+  for (const [name, content] of catalog) fs.writeFileSync(path.join(home, name), content);
+  return home;
+}
+
+async function setup({ initial = {}, trusted = true, installed = true, codexInstalled = true, overrides = {}, presets, codexPresets, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]), codex = {} } = {}) {
   const values = copy(initial), writes = [], commands = {}, messages = [], executed = [], events = {};
-  const item = { show() {}, dispose() {} };
+  const statusItems = [], outputLines = [];
+  const home = codexHome(codex);
   const hooks = {};
   const window = {
-    createStatusBarItem: () => item,
+    createOutputChannel: () => ({ appendLine: line => outputLines.push(line), dispose() {} }),
+    createStatusBarItem: () => {
+      const created = { shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
+      statusItems.push(created);
+      return created;
+    },
     showWarningMessage: message => messages.push(message),
     showInformationMessage: async message => { messages.push(message); return hooks.reload ? 'Reload Window' : undefined; },
     showErrorMessage: message => messages.push(message),
@@ -34,15 +52,22 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
   };
   const vscode = {
     window, StatusBarAlignment: { Left: 1, Right: 2 }, ConfigurationTarget: { Global: 1 },
-    extensions: { getExtension: id => { assert.equal(id, 'anthropic.claude-code'); return installed ? {} : undefined; } },
+    extensions: { getExtension: id => {
+      assert.ok(['anthropic.claude-code', 'openai.chatgpt'].includes(id));
+      if (id === 'anthropic.claude-code') return installed ? {} : undefined;
+      return codexInstalled ? {} : undefined;
+    } },
     workspace: {
       isTrusted: trusted,
       getConfiguration: section => {
-        assert.ok(['claudeCode', 'claudeCodeSwitcher'].includes(section));
-        return section === 'claudeCode' ? cfg : {
+        assert.ok(['claudeCode', 'providerSwitcher', 'chatgpt'].includes(section));
+        if (section === 'claudeCode') return cfg;
+        if (section === 'chatgpt') return { get: (name, fallback) => Object.hasOwn(switcherSettings, name) ? switcherSettings[name] : fallback };
+        return {
           get: (name, fallback) => name === 'presets' ? workspacePresets ?? presets ?? fallback :
+            name === 'codexPresets' ? codexPresets ?? fallback :
             Object.hasOwn(switcherSettings, name) ? switcherSettings[name] : fallback,
-          inspect: () => ({ globalValue: presets, workspaceValue: workspacePresets }),
+          inspect: name => ({ globalValue: name === 'codexPresets' ? codexPresets : presets, workspaceValue: workspacePresets }),
         };
       },
       onDidChangeConfiguration: fn => { events.config = fn; return { dispose() {} }; },
@@ -63,10 +88,14 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
     delete: async key => secret.delete(key),
   } });
   return {
-    values, writes, commands, window, item, events, secret, messages, executed, hooks,
+    values, writes, commands, window, events, secret, messages, executed, hooks, home, outputLines,
+    item: statusItems[0], codexItem: statusItems[1],
+    read: () => fs.readFileSync(path.join(home, 'config.toml'), 'utf8'),
     env: () => Object.fromEntries((values.environmentVariables || []).map(entry => [entry.name, entry.value])),
-    switch: async model => { window.showQuickPick = async () => ({ model }); await commands['claude-code-switcher.switchModel'](); },
-    reset: () => commands['claude-code-switcher.resetDeepseekApiKey'](),
+    switch: async model => { window.showQuickPick = async () => ({ model }); await commands['provider-switcher.switchModel'](); },
+    switchCodex: async model => { window.showQuickPick = async () => ({ model }); await commands['provider-switcher.switchCodexModel'](); },
+    reset: () => commands['provider-switcher.resetDeepseekApiKey'](),
+    resetCodex: () => commands['provider-switcher.resetCodexApiKey'](),
   };
 }
 
@@ -130,7 +159,7 @@ test('backup survives extension reload and repeated DeepSeek selection', async (
 test('cancelled picker, key entry, and replacement leave configuration untouched', async () => {
   const app = await setup({ secret: new Map() });
   app.window.showQuickPick = async () => undefined;
-  await app.commands['claude-code-switcher.switchModel']();
+  await app.commands['provider-switcher.switchModel']();
   await app.switch('deepseek');
   assert.equal(app.writes.length, 0);
   assert.equal(app.secret.has(BACKUP), false);
@@ -249,7 +278,7 @@ test('preset-specific credentials and reset do not reuse another provider key', 
   assert.equal(app.secret.get('deepseekApiKey'), 'test-secret');
   app.window.showInputBox = async () => 'replacement';
   app.window.showQuickPick = async () => ({ model: 'other' });
-  await app.commands['claude-code-switcher.resetApiKey']();
+  await app.commands['provider-switcher.resetApiKey']();
   assert.equal(app.env().ANTHROPIC_API_KEY, 'replacement');
   const other = resolvePresets(presets).presets.find(preset => preset.id === 'other');
   assert.equal(app.secret.get(secretKey(other)), 'replacement');
@@ -274,7 +303,7 @@ test('changed preset values apply only on reselection and status reflects actual
   await app.switch('deepseek');
   assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
   presets.deepseek.environment.ANTHROPIC_MODEL = 'second-model';
-  app.events.config({ affectsConfiguration: section => section === 'claudeCodeSwitcher' });
+  app.events.config({ affectsConfiguration: section => section === 'providerSwitcher' });
   assert.match(app.item.text, /Custom provider/);
   assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
   await app.switch('deepseek');
@@ -310,9 +339,9 @@ test('picker lists configured presets and configure command opens settings', asy
     assert.deepEqual(Array.from(items, item => item.model), ['claude', 'local']);
     return undefined;
   };
-  await app.commands['claude-code-switcher.switchModel']();
+  await app.commands['provider-switcher.switchModel']();
   assert.equal(app.writes.length, 0);
-  await app.commands['claude-code-switcher.configurePresets']();
+  await app.commands['provider-switcher.configurePresets']();
   assert.deepEqual(app.executed, ['workbench.action.openSettings']);
 });
 
@@ -361,10 +390,10 @@ test('status colors update live without provider writes and clear when falling b
   assert.equal(app.item.color, '#00ff88');
   const writes = app.writes.length;
   colors.local = '#ff8800';
-  app.events.config({ affectsConfiguration: section => section === 'claudeCodeSwitcher' });
+  app.events.config({ affectsConfiguration: section => section === 'providerSwitcher' });
   assert.equal(app.item.color, '#ff8800');
   colors.local = null;
-  app.events.config({ affectsConfiguration: section => section === 'claudeCodeSwitcher' });
+  app.events.config({ affectsConfiguration: section => section === 'providerSwitcher' });
   assert.equal(app.item.color, undefined);
   assert.equal(app.writes.length, writes);
   colors.local = 'invalid';
@@ -392,4 +421,156 @@ test('auto-mode server setting restores its previous value and is not claimed by
   const legacy = await setup({ initial, secret });
   await legacy.switch('claude');
   assert.equal(legacy.env().CLAUDE_CODE_AUTO_MODE_SERVER, '1');
+});
+
+const codexFixture = `model = "gpt-6-astra"
+model_reasoning_effort = "high"
+
+service_tier = "default"
+notify = [ "C:\\\\tools\\\\notify.exe", "turn-ended" ]
+
+[projects.'c:\\users\\test\\app']
+trust_level = "trusted"
+`;
+
+test('Codex preset rewrites config.toml, keeps unrelated settings, and installs the catalog', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  app.window.showInputBox = async () => ' sk-codex ';
+  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+  await app.switchCodex('deepseek-v4-pro');
+  const written = app.read();
+  assert.match(written, /^model = "deepseek-v4-pro"$/m);
+  assert.match(written, /^model_provider = "deepseek"$/m);
+  assert.match(written, /^model_catalog_json = ".*models\.json"$/m);
+  assert.ok(!written.includes('service_tier'));
+  assert.ok(!written.includes('gpt-6-astra'));
+  assert.match(written, /\[projects\.'c:\\users\\test\\app'\]\ntrust_level = "trusted"/);
+  assert.match(written, /notify = \[ "C:\\\\tools\\\\notify\.exe", "turn-ended" \]/);
+  assert.match(written, /\[model_providers\.deepseek\]\nname = "deepseek"\nbase_url = "https:\/\/api\.deepseek\.com\/"\nwire_api = "responses"\nexperimental_bearer_token = "sk-codex"/);
+  assert.match(written, /\[desktop\]\nenabled-reasoning-efforts = \[/);
+  assert.ok(fs.existsSync(path.join(app.home, 'models.json')));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8')).models.length, 2);
+  assert.ok(app.secret.has(CODEX_BACKUP));
+  assert.match(app.codexItem.text, /Codex: DeepSeek V4 Pro/);
+  assert.equal(app.writes.length, 0);
+  // Adjustments are reported without echoing removed values.
+  assert.ok(app.outputLines.some(line => line.includes('Codex -> DeepSeek V4 Pro')));
+  assert.ok(app.outputLines.includes('  Removed service_tier'));
+  assert.ok(!app.outputLines.join('').includes('sk-codex'));
+});
+
+test('an existing Codex catalog is never overwritten and survives restore', async () => {
+  const original = '{"models":[]}\n';
+  const app = await setup({ codex: { config: codexFixture, catalog: new Map([['models.json', original]]) } });
+  app.window.showInputBox = async () => 'sk-codex';
+  await app.switchCodex('deepseek-flash');
+  assert.equal(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8'), original);
+  await app.switchCodex('chatgpt');
+  assert.equal(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8'), original);
+  assert.ok(!app.secret.has(CODEX_BACKUP));
+  assert.equal(app.read(), codexFixture);
+  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+});
+
+test('Codex restore returns the exact original file and removes only its own catalog', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  app.window.showInputBox = async () => 'sk-codex';
+  await app.switchCodex('deepseek-flash');
+  await app.switchCodex('chatgpt');
+  assert.equal(app.read(), codexFixture);
+  assert.ok(!fs.existsSync(path.join(app.home, 'models.json')));
+  assert.ok(!app.secret.has(CODEX_BACKUP));
+});
+
+test('Codex guards prevent writes and report once', async () => {
+  const untrusted = await setup({ trusted: false, codex: { config: codexFixture } });
+  await untrusted.switchCodex('deepseek-flash');
+  assert.equal(untrusted.read(), codexFixture);
+  assert.equal(untrusted.messages.length, 1);
+
+  const missing = await setup({ codex: { config: codexFixture } });
+  process.env.CODEX_HOME = path.join(missing.home, 'does-not-exist');
+  await missing.switchCodex('deepseek-flash');
+  assert.match(missing.messages[0], /has not created its configuration directory/);
+
+  const wsl = await setup({ codex: { config: codexFixture }, switcherSettings: { runCodexInWindowsSubsystemForLinux: true } });
+  await wsl.switchCodex('deepseek-flash');
+  assert.equal(wsl.read(), codexFixture);
+  assert.match(wsl.messages[0], /inside WSL/);
+
+  // A machine that never ran Codex gets no Codex status entry.
+  const absent = await setup({ codexInstalled: false });
+  assert.equal(absent.codexItem.shown, false);
+});
+
+test('cancelled Codex key entry leaves the configuration and secrets untouched', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  await app.switchCodex('deepseek-flash');
+  assert.equal(app.read(), codexFixture);
+  assert.ok(!app.secret.has(CODEX_BACKUP));
+  assert.equal(fs.existsSync(path.join(app.home, 'models.json')), false);
+});
+
+test('failed Codex write rolls back the catalog and the ownership backup', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  app.window.showInputBox = async () => 'sk-codex';
+  const promises = require('node:fs/promises');
+  const real = promises.writeFile;
+  promises.writeFile = async () => { throw new Error('test-secret'); };
+  try { await app.switchCodex('deepseek-flash'); }
+  finally { promises.writeFile = real; }
+  assert.equal(app.read(), codexFixture);
+  assert.ok(!app.secret.has(CODEX_BACKUP));
+  assert.equal(fs.existsSync(path.join(app.home, 'models.json')), false);
+  assert.ok(!app.messages.join('').includes('test-secret'));
+});
+
+test('Codex preset-to-preset switching reuses the key and the original backup', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  let prompts = 0;
+  app.window.showInputBox = async () => { prompts += 1; return 'sk-codex'; };
+  await app.switchCodex('deepseek-flash');
+  const backup = app.secret.get(CODEX_BACKUP);
+  await app.switchCodex('deepseek-v4-pro');
+  assert.equal(prompts, 1);
+  assert.equal(app.secret.get(CODEX_BACKUP), backup);
+  const written = app.read();
+  assert.equal(written.match(/\[model_providers\.deepseek\]/g).length, 1);
+  assert.equal(written.match(/^model = /gm).length, 1);
+  assert.equal(written.match(/^\[desktop\]$/gm).length, 1);
+  assert.match(written, /^model = "deepseek-v4-pro"$/m);
+  const flash = resolveCodexPresets().presets.find(preset => preset.id === 'deepseek-flash');
+  assert.equal(app.secret.get(codexSecretKey(flash)), 'sk-codex');
+});
+
+test('Codex key reset updates an active preset and stores one for an inactive preset', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  app.window.showInputBox = async () => 'sk-first';
+  await app.switchCodex('deepseek-flash');
+  app.window.showInputBox = async () => 'sk-replaced';
+  await app.commands['provider-switcher.resetCodexApiKey']();
+  assert.match(app.read(), /experimental_bearer_token = "sk-replaced"/);
+  app.window.showQuickPick = async () => ({ model: 'deepseek-v4-pro' });
+  app.window.showInputBox = async () => 'sk-later';
+  await app.commands['provider-switcher.resetCodexApiKey']();
+  const pro = resolveCodexPresets().presets.find(preset => preset.id === 'deepseek-v4-pro');
+  assert.equal(app.secret.get(codexSecretKey(pro)), 'sk-later');
+  assert.match(app.read(), /experimental_bearer_token = "sk-replaced"/);
+});
+
+test('Codex state is read from the file and stays independent of the Claude panel', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  app.window.showInputBox = async () => 'sk-codex';
+  await app.switchCodex('deepseek-flash');
+  // A Codex switch never touches Claude Code settings.
+  assert.equal(app.writes.length, 0);
+  await app.switch('deepseek');
+  assert.match(app.item.text, /DeepSeek/);
+  assert.match(app.codexItem.text, /Codex: DeepSeek Flash/);
+  fs.writeFileSync(path.join(app.home, 'config.toml'), app.read().replace('https://api.deepseek.com/', 'https://proxy.example/'));
+  await app.events.config({ affectsConfiguration: () => true });
+  assert.match(app.codexItem.text, /Codex: Custom/);
+  fs.writeFileSync(path.join(app.home, 'config.toml'), 'model = "gpt-6-astra"\n');
+  await app.events.config({ affectsConfiguration: () => true });
+  assert.match(app.codexItem.text, /Codex: ChatGPT/);
 });

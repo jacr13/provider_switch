@@ -1,8 +1,8 @@
 {
-  "name": "claude-code-switcher",
-  "displayName": "Claude Code Switcher",
-  "description": "Switch the Claude Code chat panel between configurable provider presets, with DeepSeek included.",
-  "version": "0.1.0",
+  "name": "provider-switcher",
+  "displayName": "Provider Switcher",
+  "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek included.",
+  "version": "0.2.0",
   "icon": "images/icon.png",
   "publisher": "jacr",
   "author": {
@@ -26,9 +26,12 @@
   ],
   "keywords": [
     "claude",
+    "codex",
     "deepseek",
     "ai",
     "llm",
+    "provider",
+    "model",
     "switcher"
   ],
   "activationEvents": [
@@ -41,22 +44,34 @@
   "contributes": {
     "commands": [
       {
-        "command": "claude-code-switcher.switchModel",
-        "title": "Claude Code Switcher: Switch Preset"
+        "command": "provider-switcher.switchModel",
+        "title": "Provider Switcher: Switch Preset"
       },
       {
-        "command": "claude-code-switcher.resetApiKey",
-        "title": "Claude Code Switcher: Reset Preset API Key"
+        "command": "provider-switcher.resetApiKey",
+        "title": "Provider Switcher: Reset Preset API Key"
       },
       {
-        "command": "claude-code-switcher.configurePresets",
-        "title": "Claude Code Switcher: Configure Presets"
+        "command": "provider-switcher.configurePresets",
+        "title": "Provider Switcher: Configure Presets"
+      },
+      {
+        "command": "provider-switcher.switchCodexModel",
+        "title": "Provider Switcher: Switch Codex Model"
+      },
+      {
+        "command": "provider-switcher.resetCodexApiKey",
+        "title": "Provider Switcher: Reset Codex API Key"
+      },
+      {
+        "command": "provider-switcher.configureCodexPresets",
+        "title": "Provider Switcher: Configure Codex Presets"
       }
     ],
     "configuration": {
-      "title": "Claude Code Switcher",
+      "title": "Provider Switcher",
       "properties": {
-        "claudeCodeSwitcher.presets": {
+        "providerSwitcher.presets": {
           "type": "object",
           "scope": "machine",
           "default": {},
@@ -86,14 +101,36 @@
           },
           "additionalProperties": false
         },
-        "claudeCodeSwitcher.statusBarColors": {
+        "providerSwitcher.codexPresets": {
+          "type": "object",
+          "scope": "machine",
+          "default": {},
+          "markdownDescription": "Model presets for the Codex extension. Edit in User Settings JSON. The built-in `deepseek-flash` and `deepseek-v4-pro` presets are merged with your overrides; set one to `null` to hide it. New IDs add presets. Selecting a preset rewrites `~/.codex/config.toml`, keeping unrelated settings such as projects and MCP servers. Keys are prompted for and saved separately. After editing, select the preset again and reload the window.",
+          "patternProperties": {
+            "^(?!chatgpt$|custom$)[a-z][a-z0-9-]*$": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "properties": {
+                "label": { "type": "string", "minLength": 1, "description": "Name shown in the picker and status bar." },
+                "model": { "type": "string", "minLength": 1, "description": "Model name sent to the endpoint, for example deepseek-flash." },
+                "provider": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "default": "deepseek", "description": "Identifier of the [model_providers.<id>] table written to the configuration." },
+                "baseUrl": { "type": "string", "default": "https://api.deepseek.com/", "markdownDescription": "OpenAI-compatible endpoint. Must not contain credentials, a query, or a fragment." },
+                "wireApi": { "type": "string", "enum": ["responses", "chat"], "default": "responses", "description": "Protocol used to talk to the endpoint." },
+                "reasoningEffort": { "type": "string", "enum": ["low", "medium", "high", "xhigh", "ultra", "max"], "default": "high", "description": "Reasoning effort requested from the model." },
+                "apiKey": { "type": "boolean", "default": true, "description": "Whether the endpoint needs an API key. Use false for a local endpoint that accepts none." }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "providerSwitcher.statusBarColors": {
           "type": "object",
           "default": {
             "claude": "#d97706",
             "deepseek": "#a78bfa",
             "custom": null
           },
-          "markdownDescription": "Status bar text and icon colors by preset ID. Use `claude` for the restored Claude configuration and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
+          "markdownDescription": "Status bar text and icon colors by preset ID. Use `claude` for the restored Claude Code configuration, `chatgpt` for the restored Codex configuration, and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
           "patternProperties": {
             "^[a-z][a-z0-9-]*$": {
               "type": ["string", "null"],
@@ -102,7 +139,7 @@
           },
           "additionalProperties": false
         },
-        "claudeCodeSwitcher.statusBarAlignment": {
+        "providerSwitcher.statusBarAlignment": {
           "type": "string",
           "enum": [
             "left",
@@ -115,7 +152,7 @@
     },
     "keybindings": [
       {
-        "command": "claude-code-switcher.switchModel",
+        "command": "provider-switcher.switchModel",
         "key": "ctrl+alt+m",
         "mac": "cmd+alt+m",
         "when": "editorFocus"
@@ -123,8 +160,8 @@
     ]
   },
   "scripts": {
-    "test": "node --test deepseek-rate.test.js extension.test.js presets.test.js",
-    "lint": "node --check extension.js && node --check deepseek-rate.js && node --check presets.js",
+    "test": "node --test deepseek-rate.test.js extension.test.js presets.test.js codex-config.test.js",
+    "lint": "node --check extension.js && node --check deepseek-rate.js && node --check presets.js && node --check codex-config.js",
     "package": "vsce package"
   },
   "devDependencies": {
