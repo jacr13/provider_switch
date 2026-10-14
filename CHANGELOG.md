@@ -2,7 +2,7 @@
 
 All notable changes to **Provider Switcher** will be documented here.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-14
 
 - Keep the panel's previous settings in a file next to Codex's copy, keep the Codex copy in both locations so either survives losing the other, and adopt whichever file is found when secret storage is empty, so reinstalling can switch both sides back instead of only offering to detach.
 - Offer to remove the settings the extension wrote when the saved original is gone, which is what an uninstall or cleared secret storage leaves behind, instead of only reporting that nothing can be restored. It hands the panel back to its usual Claude sign-in and Codex back to its own.
