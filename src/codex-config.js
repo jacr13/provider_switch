@@ -275,7 +275,65 @@ function configuredPreset(text, presets) {
   return match ? match.id : 'custom';
 }
 
+// Puts the file back as far as it can without the original bytes: the keys this
+// extension writes and the provider table it added are removed and everything
+// else is left alone. Used when the saved original is gone, which happens when
+// the extension is reinstalled or its secret storage is cleared.
+function detachPreset(text, provider) {
+  const lines = String(text || '').split('\n');
+  const out = [], report = [];
+  const scan = scanner();
+  const skip = provider ? `model_providers.${provider}` : '';
+  let index = 0, inLeading = true, section = '', skipSection = false;
+  while (index < lines.length) {
+    const line = lines[index];
+    const consume = () => {
+      scan.scan(lines[index]);
+      index += 1;
+      while (scan.open() && index < lines.length) {
+        scan.scan(lines[index]);
+        index += 1;
+      }
+    };
+    if (!scan.open() && trim(line).startsWith('[')) {
+      inLeading = false;
+      section = headerOf(line);
+      skipSection = Boolean(skip) && (section === skip || section.startsWith(`${skip}.`));
+      if (skipSection) {
+        report.push(`Removed [${section}]`);
+        consume();
+        continue;
+      }
+      out.push(line);
+      scan.scan(line);
+      index += 1;
+      continue;
+    }
+    if (!inLeading && skipSection) {
+      consume();
+      continue;
+    }
+    const key = keyOf(line);
+    if (inLeading && key && TARGET_KEYS.includes(key)) {
+      report.push(`Removed ${key}`);
+      consume();
+      continue;
+    }
+    if (section === 'desktop' && key === DESKTOP_KEY) {
+      report.push(`Removed ${DESKTOP_KEY} from [desktop]`);
+      consume();
+      continue;
+    }
+    out.push(line);
+    scan.scan(line);
+    index += 1;
+  }
+  dropTrailingBlanks(out);
+  const body = out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '');
+  return { text: body ? `${body}\n` : '', report };
+}
+
 module.exports = {
-  applyPreset, configuredPreset, codexHome, configPath, catalogPath, tomlString,
+  applyPreset, configuredPreset, detachPreset, codexHome, configPath, catalogPath, tomlString,
   DEFAULT_CODEX_PROVIDER: PROVIDER_DEFAULT, DEFAULT_CODEX_BASE_URL: BASE_URL_DEFAULT,
 };

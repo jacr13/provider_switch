@@ -32,6 +32,14 @@ The rename changes the extension ID, its commands (`provider-switcher.*`), and i
 2. Remove the old `claudeCodeSwitcher.*` settings from User `settings.json` and add the presets under `providerSwitcher.presets`, inside `claude` and `codex`. The built-in DeepSeek presets need no settings at all.
 3. Re-enter the API key once per endpoint when prompted, or run **Provider Switcher: Reset Preset API Key** and **Reset Codex API Key**.
 
+### Reinstalling, and restoring without a backup
+
+VS Code clears an extension's secret storage when it is uninstalled, and the saved originals live there: the panel's previous environment and login settings, and Codex's configuration bytes. Switch back to **Claude** and **ChatGPT** *before* uninstalling, or the switcher has nothing to restore afterwards.
+
+If that already happened, choose **Claude** or **ChatGPT** anyway. Instead of refusing, the switcher explains that it has no record of the original and offers to remove the settings it wrote — that hands the panel back to your usual Claude sign-in and Codex back to its own — leaving everything it did not write in place. What it *replaced* cannot come back: values it removed from `config.toml` while a preset was selected (such as `service_tier` or `profile`), and the panel settings it overwrote. Note that after a preset is selected once more, the switcher has a fresh original to restore to.
+
+The copy at `~/.codex/backup-provider-switcher/config.toml` helps only when it was taken before the switcher changed the file. A copy of a configuration that already selects one of the presets is never written, because that would be this extension's own output rather than what Codex came with.
+
 ## Switch Codex models
 
 Click the **Codex** status bar button, or run **Provider Switcher: Switch Codex Model**. Choose **DeepSeek Flash**, **DeepSeek V4 Pro**, or **ChatGPT** to restore the configuration saved before the first switch.
@@ -164,7 +172,7 @@ The bundled DeepSeek preset uses `https://api.deepseek.com/anthropic`, with `dee
 
 Before the first preset switch, the original environment and login preference are backed up in SecretStorage. Switching between presets and replacing keys preserve that baseline. Custom variables are tracked as each preset takes ownership, so removing a preset or reloading the extension still allows restoration. If your original configuration used another provider, switching back restores that provider. An external provider configuration without a saved backup is left intact with an explanation.
 
-For the Codex panel, the switcher edits exactly one file: `~/.codex/config.toml` (or `$CODEX_HOME/config.toml`). Before the first switch it saves the file's original bytes and restores them when you choose **ChatGPT**, and it keeps a plain copy of that original at `~/.codex/backup-provider-switcher/config.toml` so you can put it back by hand. The copy is written as soon as the extension activates next to a Codex configuration, so it exists before the switcher ever changes your file, and never after that is it overwritten — delete the folder if you want a fresh copy. Nothing is created on a machine that has not run Codex. It never touches Codex session data, plugins, MCP server definitions, or the model catalog once that file exists. Switching is refused while Codex is configured to run inside WSL, where the file lives elsewhere, and while `~/.codex` has not been created yet.
+For the Codex panel, the switcher edits exactly one file: `~/.codex/config.toml` (or `$CODEX_HOME/config.toml`). Before the first switch it saves the file's original bytes and restores them when you choose **ChatGPT**, and it keeps a plain copy of that original at `~/.codex/backup-provider-switcher/config.toml` so you can put it back by hand. The copy is written as soon as the extension activates next to a Codex configuration, so it exists before the switcher ever changes your file, and never after that is it overwritten — delete the folder if you want a fresh copy. Nothing is created on a machine that has not run Codex, and nothing is copied from a file that already selects one of the presets. It never touches Codex session data, plugins, MCP server definitions, or the model catalog once that file exists. Switching is refused while Codex is configured to run inside WSL, where the file lives elsewhere, and while `~/.codex` has not been created yet.
 
 The switcher does not edit `~/.claude/settings.json`, workspace files, terminal settings, permission modes, or Claude's installed files. Conflicting workspace settings and custom process wrappers are reported before changing providers. Failed updates attempt to restore the previous settings.
 

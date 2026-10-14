@@ -4,6 +4,8 @@ All notable changes to **Provider Switcher** will be documented here.
 
 ## [Unreleased]
 
+- Offer to remove the settings the extension wrote when the saved original is gone, which is what an uninstall or cleared secret storage leaves behind, instead of only reporting that nothing can be restored. It hands the panel back to its usual Claude sign-in and Codex back to its own.
+- Never keep a copy of a configuration that already selects one of the presets: that is the extension's own output, not what Codex came with, and copying it made a useless file look like a restore point.
 - Keep a plain copy of `~/.codex/config.toml` at `~/.codex/backup-provider-switcher/config.toml`, like DeepSeek's own setup script does. It is written on activation and holds the configuration from before the first switch, comes from the saved baseline rather than the live file, is never overwritten, and survives uninstalling the extension.
 - Give the restored Codex configuration OpenAI's blossom in place of the generic sparkle, matching the starburst the Claude side already uses.
 - Show a whale instead of the generic rocket for presets on DeepSeek's own endpoint, on both status bar buttons.

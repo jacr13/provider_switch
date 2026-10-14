@@ -7,7 +7,7 @@ const { getDeepseekRate } = require('./deepseek-rate');
 
 const { resolveClaudePresets, resolveCodexPresets, splitPresets, isDeepseekEndpoint } = require('./presets');
 const { BASE_MANAGED_KEYS, DEFAULT_PRESETS, DEFAULT_CODEX_BASE_URL } = require('./presets');
-const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = require('./codex-config');
+const { applyPreset, configuredPreset, detachPreset, codexHome, configPath, catalogPath } = require('./codex-config');
 // DeepSeek's model catalog in Codex's catalog format, written to models.json.
 const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
@@ -181,6 +181,22 @@ async function offerReload(provider) {
   if (answer === 'Reload Window') await vscode.commands.executeCommand('workbench.action.reloadWindow');
 }
 
+// Without the saved original the panel cannot be put back exactly as it was, but
+// the variables a preset wrote can be removed, which returns the panel to the
+// sign-in it would otherwise use.
+async function detachPanel(cfg, preset) {
+  const current = globalValue(cfg, 'environmentVariables') || [];
+  const owned = new Set([...Object.keys(preset.environment), preset.apiKeyEnv].filter(name => name && name !== 'none'));
+  const environment = current.filter(entry => !owned.has(entry.name));
+  output.appendLine(`Claude Code -> detached (${owned.size} preset variables removed)`);
+  await writeSettings(cfg, [
+    ['environmentVariables', environment.length ? environment : undefined],
+    ['disableLoginPrompt', undefined],
+    ['useTerminal', undefined],
+  ]);
+  await offerReload('Claude');
+}
+
 async function setProvider(provider, replacementKey) {
   if (!canConfigure(provider)) return;
   const cfg = claudeConfig();
@@ -227,7 +243,16 @@ async function setProvider(provider, replacementKey) {
     await offerReload(preset.label);
   } else {
     if (!saved && configuredProvider() !== 'claude') {
-      vscode.window.showWarningMessage('This provider was configured outside the switcher, so there is no saved Claude configuration to restore. Review Claude Code user settings first.');
+      const preset = getPresets().find(item => item.id === configuredProvider());
+      if (!preset) {
+        vscode.window.showWarningMessage('This provider was configured outside the switcher, so there is no saved Claude configuration to restore. Review Claude Code user settings first.');
+        return;
+      }
+      const choice = await vscode.window.showWarningMessage(
+        `There is no saved Claude Code configuration to restore: this extension has no record of the settings from before the ${preset.label} preset was selected, which happens once it is reinstalled or its secret storage is cleared. Removing the variables it wrote hands the panel back to your usual Claude sign-in, but anything it replaced cannot be recovered.`,
+        { modal: true }, 'Remove the variables it wrote');
+      if (choice !== 'Remove the variables it wrote') return;
+      await detachPanel(cfg, preset);
       return;
     }
     const changes = [];
@@ -382,6 +407,34 @@ async function copyCodexBackup(home, config) {
   }
 }
 
+async function readText(file) {
+  try { return await fs.readFile(file, 'utf8'); }
+  catch { return undefined; }
+}
+
+// The saved original is gone, so the file can only be returned to Codex by
+// removing what this extension wrote. Everything it did not write is kept.
+async function detachCodex(home, current) {
+  const active = configuredPreset(current || '', getCodexPresets());
+  const preset = getCodexPresets().find(item => item.id === active);
+  const { text, report } = detachPreset(current || '', preset?.provider);
+  output.appendLine(`Codex -> detached (${configPath(home)})`);
+  report.forEach(line => output.appendLine(`  ${line}`));
+  await fs.writeFile(configPath(home), text);
+  // Only what this extension generated is removed, never something it found.
+  const catalog = `${JSON.stringify(DEEPSEEK_CODEX_CATALOG, null, 2)}\n`;
+  if (await readText(catalogPath(home)) === catalog) {
+    await fs.rm(catalogPath(home), { force: true });
+    output.appendLine('  Removed the model catalog it wrote');
+  }
+  const folder = path.join(home, CODEX_BACKUP_DIR);
+  if (await readText(path.join(folder, 'config.toml')) === current) {
+    await fs.rm(folder, { recursive: true, force: true });
+    output.appendLine('  Removed the copy it kept, which held the same configuration');
+  }
+  await offerCodexReload('Codex');
+}
+
 // The copy prefers the saved original: the live file may already hold a preset,
 // and the baseline is the only record of what the file looked like before that.
 async function keepCodexCopy(home, live) {
@@ -390,6 +443,12 @@ async function keepCodexCopy(home, live) {
     const saved = await secrets.get(CODEX_BACKUP_KEY);
     if (saved) baseline = JSON.parse(saved).config;
   } catch { /* unreadable baseline: the live file is the best record left */ }
+  // A file that already selects one of our presets is this extension's own work,
+  // not what Codex had before it: copying that would look like a restore point
+  // while being useless as one. A configuration pointing somewhere else is the
+  // user's own and is worth keeping.
+  const active = configuredPreset(baseline || '', getCodexPresets());
+  if (active !== 'chatgpt' && active !== 'custom') return;
   await copyCodexBackup(home, baseline);
 }
 
@@ -412,7 +471,12 @@ async function setCodexPreset(provider, replacementKey) {
 
   if (provider === 'chatgpt') {
     if (!saved && configuredPreset(current || '', getCodexPresets()) !== 'chatgpt') {
-      vscode.window.showWarningMessage('Codex was configured outside the switcher, so there is no saved configuration to restore. Review its configuration file first.');
+      const preset = getCodexPresets().find(item => item.id === configuredPreset(current || '', getCodexPresets()));
+      const choice = await vscode.window.showWarningMessage(
+        `There is no saved Codex configuration to restore: this extension has no record of the file from before ${preset ? `the ${preset.label} preset` : 'the current provider'} was selected, which happens once it is reinstalled or its secret storage is cleared. Removing the settings it wrote hands Codex back to its own sign-in, but the API key it stored and anything it removed cannot be recovered.`,
+        { modal: true }, 'Remove the settings it wrote');
+      if (choice !== 'Remove the settings it wrote') return;
+      await detachCodex(home, current);
       return;
     }
     if (backup.config === null) await fs.rm(file, { force: true });

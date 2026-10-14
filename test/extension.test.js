@@ -39,7 +39,7 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
       statusItems.push(created);
       return created;
     },
-    showWarningMessage: message => messages.push(message),
+    showWarningMessage: message => { messages.push(message); return hooks.warning?.(message); },
     showInformationMessage: async message => { messages.push(message); return hooks.reload ? 'Reload Window' : undefined; },
     showErrorMessage: message => messages.push(message),
     showInputBox: async () => undefined,
@@ -551,6 +551,73 @@ test('the copy is kept on activation, before anything switches', async () => {
   // A Codex home without a configuration file has nothing to copy.
   const bare = await setup({ secret: new Map() });
   assert.equal(fs.existsSync(path.join(bare.home, 'backup-provider-switcher')), false);
+});
+
+test('no copy is kept of a file that already selects one of our presets', async () => {
+  const first = await setup({ codex: { config: codexFixture }, secret: new Map() });
+  first.window.showInputBox = async () => 'sk-codex';
+  await first.switchCodex('deepseek-flash');
+  const app = await setup({ codex: { config: first.read() }, secret: new Map() });
+  // That is this extension's own output, not the configuration Codex came with.
+  assert.equal(fs.existsSync(path.join(app.home, 'backup-provider-switcher')), false);
+  // A configuration the user built themselves is still worth keeping a copy of.
+  const own = await setup({ codex: { config: 'model = "gpt-6-astra"\nmodel_provider = "mycorp"\n\n[model_providers.mycorp]\nbase_url = "https://proxy.example/"\n' } });
+  assert.ok(fs.existsSync(path.join(own.home, 'backup-provider-switcher', 'config.toml')));
+});
+
+test('Codex is handed back to its own sign-in when the saved original is gone', async () => {
+  const first = await setup({ codex: { config: codexFixture }, secret: new Map() });
+  first.window.showInputBox = async () => 'sk-codex';
+  await first.switchCodex('deepseek-flash');
+  const switched = first.read();
+
+  // A reinstall: the file still selects the preset, with no saved original left.
+  const catalog = `${JSON.stringify(require('../resources/deepseek-codex-models.json'), null, 2)}\n`;
+  const app = await setup({ codex: { config: switched, catalog: new Map([['models.json', catalog]]) }, secret: new Map() });
+  fs.mkdirSync(path.join(app.home, 'backup-provider-switcher'), { recursive: true });
+  fs.writeFileSync(path.join(app.home, 'backup-provider-switcher', 'config.toml'), switched);
+
+  // Cancelling changes nothing.
+  await app.switchCodex('chatgpt');
+  assert.equal(app.read(), switched);
+  assert.equal(app.writes.length, 0);
+
+  app.hooks.warning = () => 'Remove the settings it wrote';
+  await app.switchCodex('chatgpt');
+  const written = app.read();
+  assert.ok(!written.includes('model_provider'));
+  assert.ok(!written.includes('[model_providers.deepseek]'));
+  assert.ok(!written.includes('experimental_bearer_token'));
+  assert.ok(!written.includes('enabled-reasoning-efforts'));
+  // Everything the switcher did not write survives.
+  assert.match(written, /notify = \[ "C:\\\\tools\\\\notify\.exe", "turn-ended" \]/);
+  assert.match(written, /\[projects\.'c:\\users\\test\\app'\]/);
+  assert.equal(fs.existsSync(path.join(app.home, 'models.json')), false);
+  // The copy held the same configuration, so it was the extension's own and goes too.
+  assert.equal(fs.existsSync(path.join(app.home, 'backup-provider-switcher')), false);
+  assert.match(app.codexItem.text, /ChatGPT/);
+  assert.ok(app.messages.some(message => /no record of the file/.test(message)));
+});
+
+test('the panel is handed back to Claude when the saved original is gone', async () => {
+  const environment = resolveClaudePresets().presets[0].environment;
+  const initial = {
+    environmentVariables: [{ name: 'CUSTOM', value: 'keep' }, ...Object.entries(environment).map(([name, value]) => ({ name, value }))],
+    disableLoginPrompt: true, useTerminal: false,
+  };
+  const app = await setup({ initial, secret: new Map() });
+  assert.match(app.item.text, /DeepSeek/);
+  // Cancelling changes nothing.
+  await app.switch('claude');
+  assert.equal(app.writes.length, 0);
+
+  app.hooks.warning = () => 'Remove the variables it wrote';
+  await app.switch('claude');
+  assert.deepEqual(app.env(), { CUSTOM: 'keep' });
+  assert.equal(Object.hasOwn(app.values, 'disableLoginPrompt'), false);
+  assert.equal(Object.hasOwn(app.values, 'useTerminal'), false);
+  assert.match(app.item.text, /Claude/);
+  assert.ok(app.messages.some(message => /no record of the settings/.test(message)));
 });
 
 test('the copy comes from the saved original, not from the live file', async () => {
