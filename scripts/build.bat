@@ -26,11 +26,11 @@ call npm test
 if errorlevel 1 goto :failed
 
 echo Packaging extension...
-call npm run package -- --out claude-deepseek-switcher.vsix
+call npm run package -- --out claude-switcher.vsix
 if errorlevel 1 goto :failed
 
 echo.
-echo Built: %CD%\claude-deepseek-switcher.vsix
+echo Built: %CD%\claude-switcher.vsix
 set "installAnswer="
 set /p "installAnswer=Install this build in VS Code? [y/N]: "
 if /i "%installAnswer%"=="y" goto :install
@@ -46,7 +46,7 @@ if errorlevel 1 (
   echo Use Extensions: Install from VSIX in VS Code to install the built file.
   goto :failed
 )
-call code --install-extension "%CD%\claude-deepseek-switcher.vsix" --force
+call code --install-extension "%CD%\claude-switcher.vsix" --force
 if errorlevel 1 goto :failed
 echo Installed. Run Developer: Reload Window in VS Code.
 popd

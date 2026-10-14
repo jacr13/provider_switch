@@ -21,7 +21,7 @@ printf 'Running tests...\n'
 npm test
 
 printf 'Packaging extension...\n'
-package="$PWD/claude-deepseek-switcher.vsix"
+package="$PWD/claude-switcher.vsix"
 npm run package -- --out "$package"
 
 printf '\nBuilt: %s\n' "$package"

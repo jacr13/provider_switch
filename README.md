@@ -1,4 +1,4 @@
-# [JACR] Claude Deepseek Switcher
+# [JACR] Claude Switcher
 
 Switch the **Claude Code for VS Code chat panel** between Anthropic Claude and DeepSeek using a status bar button. The switcher configures the official Anthropic extension; it does not open a terminal.
 
@@ -12,9 +12,9 @@ The Claude Code extension bundles its own runtime. A separate `claude` command o
 
 ## Install and use
 
-1. Run `scripts\build.bat` on Windows or `bash scripts/build.sh` on macOS/Linux. Accept the installation prompt, or use **Extensions: Install from VSIX...** and select the rebuilt `claude-deepseek-switcher.vsix`.
-2. Run **Developer: Reload Window**. Find **[JACR] Claude Deepseek Switcher** in Extensions (ID: `shivampip.claude-switcher`).
-3. Click **Claude** or **DeepSeek** in the bottom-right status bar, or run **Claude Deepseek Switcher: Switch Model** from the Command Palette.
+1. Run `scripts\build.bat` on Windows or `bash scripts/build.sh` on macOS/Linux. Accept the installation prompt, or use **Extensions: Install from VSIX...** and select the rebuilt `claude-switcher.vsix`.
+2. Run **Developer: Reload Window**. Find **[JACR] Claude Switcher** in Extensions (ID: `jacr.claude-switcher`).
+3. Click **Claude** or **DeepSeek** in the bottom-right status bar, or run **Claude Switcher: Switch Model** from the Command Palette.
 4. Choose **DeepSeek** and enter your key when prompted. The input explains where the key is stored.
 5. Finish any active Claude work, choose **Reload Window** in the notification, and start a **new chat in the Claude Code panel**.
 6. Choose **Claude** and reload again to restore the provider configuration saved before switching to DeepSeek.
@@ -54,7 +54,7 @@ The DeepSeek label retains the existing peak/off-peak estimate. It refreshes eve
 
 The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `deepseek-rate.js` for later years. Unsupported years show `Rate unknown` during possible peak windows.
 
-Set `claudeDeepseekSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button.
+Set `claudeSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button. If you customized alignment before the rename, update the setting key to this name.
 
 ## Development
 
@@ -64,8 +64,8 @@ The build scripts install dependencies, run tests, package the extension, and op
 npm.cmd ci
 npm.cmd test
 npm.cmd run lint
-npm.cmd run package -- --out claude-deepseek-switcher.vsix
-code.cmd --install-extension .\claude-deepseek-switcher.vsix --force
+npm.cmd run package -- --out claude-switcher.vsix
+code.cmd --install-extension .\claude-switcher.vsix --force
 ```
 
 On macOS/Linux, use `npm` and `code`. Press **F5** in VS Code to start an Extension Development Host. Tests mock the VS Code API and cover provider changes, restoration, cancellation, failures, key replacement, and reload behavior. A real DeepSeek request requires your key and is not part of the tests.

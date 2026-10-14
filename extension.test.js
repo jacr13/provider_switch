@@ -37,7 +37,7 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
     workspace: {
       isTrusted: trusted,
       getConfiguration: section => {
-        assert.ok(['claudeCode', 'claudeDeepseekSwitcher'].includes(section));
+        assert.ok(['claudeCode', 'claudeSwitcher'].includes(section));
         return section === 'claudeCode' ? cfg : { get: () => undefined };
       },
       onDidChangeConfiguration: fn => { events.config = fn; return { dispose() {} }; },
@@ -60,8 +60,8 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
   return {
     values, writes, commands, window, item, events, secret, messages, executed, hooks,
     env: () => Object.fromEntries((values.environmentVariables || []).map(entry => [entry.name, entry.value])),
-    switch: async model => { window.showQuickPick = async () => ({ model }); await commands['claude-deepseek-switcher.switchModel'](); },
-    reset: () => commands['claude-deepseek-switcher.resetDeepseekApiKey'](),
+    switch: async model => { window.showQuickPick = async () => ({ model }); await commands['claude-switcher.switchModel'](); },
+    reset: () => commands['claude-switcher.resetDeepseekApiKey'](),
   };
 }
 
@@ -121,7 +121,7 @@ test('backup survives extension reload and repeated DeepSeek selection', async (
 test('cancelled picker, key entry, and replacement leave configuration untouched', async () => {
   const app = await setup({ secret: new Map() });
   app.window.showQuickPick = async () => undefined;
-  await app.commands['claude-deepseek-switcher.switchModel']();
+  await app.commands['claude-switcher.switchModel']();
   await app.switch('deepseek');
   assert.equal(app.writes.length, 0);
   assert.equal(app.secret.has(BACKUP), false);

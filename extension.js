@@ -190,9 +190,9 @@ function guarded(action) {
 
 function activate(context) {
   secrets = context.secrets;
-  const cfg = vscode.workspace.getConfiguration('claudeDeepseekSwitcher');
+  const cfg = vscode.workspace.getConfiguration('claudeSwitcher');
   statusBarItem = vscode.window.createStatusBarItem('claude-code-provider', cfg.get('statusBarAlignment') === 'left' ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = 'claude-deepseek-switcher.switchModel';
+  statusBarItem.command = 'claude-switcher.switchModel';
   context.subscriptions.push(statusBarItem);
   updateStatusBar();
   const timer = setInterval(updateStatusBar, 1000);
@@ -200,8 +200,8 @@ function activate(context) {
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
     if (event.affectsConfiguration('claudeCode')) updateStatusBar();
   }));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-deepseek-switcher.switchModel', guarded(switchModel)));
-  context.subscriptions.push(vscode.commands.registerCommand('claude-deepseek-switcher.resetDeepseekApiKey', guarded(resetDeepseekApiKey)));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-switcher.switchModel', guarded(switchModel)));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-switcher.resetDeepseekApiKey', guarded(resetDeepseekApiKey)));
 }
 
 function deactivate() {}

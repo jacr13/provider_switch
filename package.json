@@ -1,10 +1,10 @@
 {
   "name": "claude-switcher",
-  "displayName": "[JACR] Claude Deepseek Switcher",
-  "description": "Switch the Claude Code extension chat panel between Anthropic Claude and DeepSeek.",
+  "displayName": "[JACR] Claude Switcher",
+  "description": "Switch the Claude Code extension chat panel between Anthropic Claude and another provider.",
   "version": "1.3.0",
   "icon": "images/icon.png",
-  "publisher": "shivampip",
+  "publisher": "jacr",
   "author": {
     "name": "jacr",
     "email": "jacr@gmail.com"
@@ -12,11 +12,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/shivampip/claude-deepseek-switcher"
+    "url": "https://github.com/jacr13/claude-switcher"
   },
-  "homepage": "https://github.com/shivampip/claude-deepseek-switcher#readme",
+  "homepage": "https://github.com/jacr13/claude-switcher#readme",
   "bugs": {
-    "url": "https://github.com/shivampip/claude-deepseek-switcher/issues"
+    "url": "https://github.com/jacr13/claude-switcher/issues"
   },
   "engines": {
     "vscode": "^1.94.0"
@@ -41,18 +41,18 @@
   "contributes": {
     "commands": [
       {
-        "command": "claude-deepseek-switcher.switchModel",
-        "title": "Claude Deepseek Switcher: Switch Model"
+        "command": "claude-switcher.switchModel",
+        "title": "Claude Switcher: Switch Model"
       },
       {
-        "command": "claude-deepseek-switcher.resetDeepseekApiKey",
-        "title": "Claude Deepseek Switcher: Reset Deepseek API Key"
+        "command": "claude-switcher.resetDeepseekApiKey",
+        "title": "Claude Switcher: Reset Deepseek API Key"
       }
     ],
     "configuration": {
-      "title": "Claude Deepseek Switcher",
+      "title": "Claude Switcher",
       "properties": {
-        "claudeDeepseekSwitcher.statusBarAlignment": {
+        "claudeSwitcher.statusBarAlignment": {
           "type": "string",
           "enum": [
             "left",
@@ -65,7 +65,7 @@
     },
     "keybindings": [
       {
-        "command": "claude-deepseek-switcher.switchModel",
+        "command": "claude-switcher.switchModel",
         "key": "ctrl+alt+m",
         "mac": "cmd+alt+m",
         "when": "editorFocus"
