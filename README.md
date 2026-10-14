@@ -7,9 +7,9 @@ A VS Code extension that lets you seamlessly switch between **Anthropic Claude**
 ## Features
 
 - **One-click model switching** — click the status bar button to open a model picker
-- **Visual theme indicator** — status bar turns 🟠 orange for Claude and 🟣 purple for Deepseek so you always know which model is active
-- **Secure API key storage** — your Deepseek API key is stored in VS Code's built-in secret store, never in plaintext
-- **Automatic terminal reload** — all terminals are recycled after a switch so the new environment variables take effect immediately
+- **Terminal status indicator** ? shows the configured provider of the selected managed terminal, with DeepSeek peak/off-peak status
+- **Secret storage** ? saves the DeepSeek key in VS Code SecretStorage and passes it only to a dedicated terminal
+- **Preserves running work** ? opens a new terminal without closing existing terminals or modifying global colors
 - **Keyboard shortcut** — `Cmd+Alt+M` (Mac) / `Ctrl+Alt+M` (Windows/Linux)
 
 ---
@@ -31,12 +31,13 @@ The bundled holiday calendar covers 2026 using the [official Chinese holiday sch
 2. Look for the **✦ Claude** button in your status bar (bottom right by default)
 3. Click it and select a model from the dropdown
 4. If switching to Deepseek for the first time, you will be prompted to enter your Deepseek API key
+5. Run `claude` in the new terminal (the CLI must already be installed).
 
 ---
 
 ## How It Works
 
-When you switch to **Deepseek**, the extension injects the following environment variables into every new VS Code integrated terminal:
+When you switch to **Deepseek**, the extension injects the following environment variables only into the dedicated terminal it creates:
 
 | Variable | Value |
 |---|---|
@@ -50,7 +51,7 @@ When you switch to **Deepseek**, the extension injects the following environment
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `786432` |
 | `ANTHROPIC_AUTH_TOKEN` | *(your Deepseek API key)* |
 
-When you switch back to **Claude**, all of those variables are removed so Claude Code uses its default Anthropic configuration.
+Choosing **Claude** opens a new terminal with these routing overrides removed from that terminal environment. Existing settings and terminals stay intact. The label describes the selected managed terminal configuration, not a verified live provider; Claude Code configuration and shell startup scripts can still affect routing. Unmanaged or restored terminals show `AI terminal`.
 
 ---
 
@@ -59,7 +60,7 @@ When you switch back to **Claude**, all of those variables are removed so Claude
 | Command | Keyboard Shortcut | Description |
 |---|---|---|
 | `Claude Deepseek Switcher: Switch Model` | `Cmd+Alt+M` / `Ctrl+Alt+M` | Open the model picker |
-| `Claude Deepseek Switcher: Reset Deepseek API Key` | — | Delete the stored key and enter a new one |
+| `Claude Deepseek Switcher: Reset Deepseek API Key` | — | Replace the stored key for future terminals; cancel preserves it |
 
 ---
 
@@ -67,9 +68,6 @@ When you switch back to **Claude**, all of those variables are removed so Claude
 
 | Setting | Default | Description |
 |---|---|---|
-| `claudeDeepseekSwitcher.currentModel` | `claude` | The currently active model (`claude` or `deepseek`) |
-| `claudeDeepseekSwitcher.claudeModel` | `claude-sonnet-4-6` | Claude model variant label |
-| `claudeDeepseekSwitcher.deepseekModel` | `deepseek-chat` | Deepseek model variant label |
 | `claudeDeepseekSwitcher.statusBarAlignment` | `right` | Position of the status bar button (`left` or `right`) |
 
 ---
@@ -82,8 +80,14 @@ Press **F5** in VS Code to launch the Extension Development Host and test the ex
 
 ## Privacy & Security
 
-- Your Deepseek API key is stored using VS Code's [SecretStorage API](https://code.visualstudio.com/api/references/vscode-api#SecretStorage) and is never written to disk in plaintext
-- No telemetry or analytics of any kind are collected
+- New keys are persisted only using VS Code SecretStorage, not terminal settings or shell command history. Dedicated terminals are transient and are not revived across reloads.
+- The key remains available in the dedicated terminal's process environment. Shell startup scripts, Claude Code subprocesses, and commands you run there can read it. Use trusted workspaces and trusted tools. This is not a security sandbox.
+- DeepSeek receives the model requests and context sent by Claude Code when configured for DeepSeek.
+- No telemetry or analytics are collected by this extension.
+- On activation, migration removes global terminal tokens matching the stored DeepSeek key and recognized legacy DeepSeek routing values. Ambiguous tokens are left intact with a warning. Unrelated settings are preserved.
+- Previously running terminals keep their old environment. Close them manually after migration or key replacement. Rotate a previously exposed key; settings backups may still contain it.
+- Earlier versions did not save original configuration or colors, so overwritten values cannot be automatically recovered. Restore your preferred colors in VS Code settings if needed.
+- Switching and disabling do not kill terminals. Close dedicated terminals yourself when finished; disabling the extension cannot revoke credentials already inherited by processes.
 
 ---
 

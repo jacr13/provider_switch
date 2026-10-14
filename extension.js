@@ -1,10 +1,7 @@
 'use strict';
 
 const vscode = require('vscode');
-const { exec } = require('child_process');
 const { getDeepseekRate } = require('./deepseek-rate');
-
-const CLAUDE_CODE_INSTALL_URL = 'https://docs.anthropic.com/en/docs/claude-code/getting-started';
 
 const DEEPSEEK_ENV = {
   ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
@@ -19,221 +16,131 @@ const DEEPSEEK_ENV = {
 
 const MANAGED_ENV_KEYS = [...Object.keys(DEEPSEEK_ENV), 'ANTHROPIC_AUTH_TOKEN'];
 
-const MANAGED_COLOR_TOKENS = [
-  'statusBar.background',
-  'statusBar.foreground',
-  'statusBar.hoverBackground',
-];
-const MODEL_COLORS = {
-  claude: {
-    'statusBar.background': '#d97706',
-    'statusBar.foreground': '#ffffff',
-    'statusBar.hoverBackground': '#b45309',
-  },
-  deepseek: {
-    'statusBar.background': '#7c3aed',
-    'statusBar.foreground': '#ffffff',
-    'statusBar.hoverBackground': '#6d28d9',
-  },
-};
 
-const PLATFORM_ENV_KEY = {
-  darwin: 'terminal.integrated.env.osx',
-  linux: 'terminal.integrated.env.linux',
-  win32: 'terminal.integrated.env.windows',
-};
-
-let statusBarItem;
 let secrets;
+let statusBarItem;
+let busy = false;
+const terminals = new Map();
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function terminalEnvKey() {
-  return PLATFORM_ENV_KEY[process.platform] ?? 'terminal.integrated.env.linux';
-}
-
-function getTerminalEnv() {
-  return { ...(vscode.workspace.getConfiguration().get(terminalEnvKey()) ?? {}) };
-}
-
-async function setTerminalEnv(env) {
-  await vscode.workspace.getConfiguration().update(
-    terminalEnvKey(), env, vscode.ConfigurationTarget.Global
-  );
-}
-
-function currentModel() {
-  return vscode.workspace.getConfiguration('claudeDeepseekSwitcher').get('currentModel');
-}
-
-function updateStatusBar(model) {
-  const labels = { claude: '$(sparkle) Claude', deepseek: '$(rocket) Deepseek' };
-  statusBarItem.text = labels[model] ?? model;
-  statusBarItem.tooltip = `Active model: ${model} — click to switch`;
+function updateStatusBar() {
+  const model = terminals.get(vscode.window.activeTerminal);
+  statusBarItem.text = model === 'deepseek' ? '$(rocket) DeepSeek' : model === 'claude' ? '$(sparkle) Claude' : '$(terminal) AI terminal';
+  statusBarItem.color = model === 'deepseek' ? '#a78bfa' : model === 'claude' ? '#d97706' : undefined;
+  statusBarItem.tooltip = model
+    ? `Terminal configured for ${model}. Run claude here. Provider is not verified against live requests. Click to open another terminal.`
+    : 'Select a provider to open a dedicated terminal. Existing terminals are not managed.';
   if (model === 'deepseek') {
     const rate = getDeepseekRate();
-    const rateLabel = { peak: 'Peak', 'off-peak': 'Off-peak (50%)', unknown: 'Rate unknown' }[rate];
-    statusBarItem.text += ` | ${rateLabel}`;
-    statusBarItem.tooltip += '\nPeak: Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese public holidays.\nOff-peak: 50% of peak rates. Holiday calendar: 2026.';
-    if (rate === 'unknown') statusBarItem.tooltip += '\nHoliday calendar unavailable for this year; rate cannot be confirmed.';
+    statusBarItem.text += ' | ' + { peak: 'Peak', 'off-peak': 'Off-peak (50%)', unknown: 'Rate unknown' }[rate];
+    statusBarItem.tooltip += '\nPeak: Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese holidays. Off-peak is 50% of peak rates. Holiday calendar: 2026.';
+    if (rate === 'unknown') statusBarItem.tooltip += '\nHoliday data unavailable for this year.';
   }
   statusBarItem.show();
 }
 
-async function applyStatusBarTheme(model) {
-  const wc = vscode.workspace.getConfiguration('workbench');
-  const existing = { ...(wc.get('colorCustomizations') ?? {}) };
-  for (const key of MANAGED_COLOR_TOKENS) delete existing[key];
-  Object.assign(existing, MODEL_COLORS[model] ?? {});
-  await wc.update('colorCustomizations', existing, vscode.ConfigurationTarget.Global);
-}
-
-function checkClaudeCodeInstalled() {
-  return new Promise(resolve => {
-    exec(process.platform === 'win32' ? 'where claude' : 'which claude', err => resolve(!err));
-  });
-}
-
-async function ensureClaudeCodeInstalled() {
-  if (await checkClaudeCodeInstalled()) return true;
-  const action = await vscode.window.showWarningMessage(
-    'Claude Code CLI not found. Please install it first.',
-    'Install Claude Code', 'Dismiss'
-  );
-  if (action === 'Install Claude Code') {
-    vscode.env.openExternal(vscode.Uri.parse(CLAUDE_CODE_INSTALL_URL));
-  }
-  return false;
-}
-
-async function getOrPromptDeepseekKey() {
-  const stored = await secrets.get('deepseekApiKey');
-  if (stored) return stored;
+async function promptKey() {
   const key = await vscode.window.showInputBox({
-    prompt: 'Enter your Deepseek API key',
-    placeHolder: 'sk-...',
-    password: true,
-    ignoreFocusOut: true,
-    validateInput: v => (v?.trim() ? null : 'API key cannot be empty'),
+    prompt: 'Enter your DeepSeek API key', password: true, ignoreFocusOut: true,
+    validateInput: value => value?.trim() ? null : 'API key cannot be empty',
   });
   if (!key?.trim()) return null;
   await secrets.store('deepseekApiKey', key.trim());
   return key.trim();
 }
 
-async function reloadTerminals(model) {
-  await vscode.commands.executeCommand('workbench.action.terminal.killAll');
-  vscode.window.createTerminal(`Claude Code (${model})`).show();
+// Only remove values identifiable as this extension's old global configuration.
+// Never copy effective workspace settings into user settings.
+async function cleanLegacySettings() {
+  const stored = await secrets.get('deepseekApiKey');
+  const cfg = vscode.workspace.getConfiguration();
+  let cleaned = false;
+  for (const platform of ['windows', 'osx', 'linux']) {
+    const name = `terminal.integrated.env.${platform}`;
+    const original = cfg.inspect(name)?.globalValue;
+    if (!original) continue;
+    const env = { ...original };
+    if (stored && env.ANTHROPIC_AUTH_TOKEN === stored) delete env.ANTHROPIC_AUTH_TOKEN;
+    if (original.ANTHROPIC_BASE_URL === DEEPSEEK_ENV.ANTHROPIC_BASE_URL) {
+      for (const [key, value] of Object.entries(DEEPSEEK_ENV)) {
+        if (env[key] === value || (key.includes('MODEL') && ['deepseek-v4-pro[1m]', 'deepseek-v4-flash'].includes(env[key]))) delete env[key];
+      }
+    }
+    if (JSON.stringify(env) !== JSON.stringify(original)) {
+      await cfg.update(name, Object.keys(env).length ? env : undefined, vscode.ConfigurationTarget.Global);
+      cleaned = true;
+    }
+    if (original.ANTHROPIC_BASE_URL === DEEPSEEK_ENV.ANTHROPIC_BASE_URL && env.ANTHROPIC_AUTH_TOKEN) {
+      vscode.window.showWarningMessage('A legacy terminal token could not be identified safely. Review terminal.integrated.env settings and remove any old DeepSeek key.');
+    }
+  }
+  if (cleaned) vscode.window.showWarningMessage('Removed identifiable legacy DeepSeek terminal settings. Existing terminals retain their environment: close old terminals manually. Consider rotating the old key because earlier versions saved it in settings.');
 }
 
-// ─── Switch logic ─────────────────────────────────────────────────────────────
-
-async function switchToDeepseek() {
-  if (!(await ensureClaudeCodeInstalled())) return false;
-  const apiKey = await getOrPromptDeepseekKey();
-  if (!apiKey) return false;
-
-  const env = getTerminalEnv();
-  for (const [k, v] of Object.entries(DEEPSEEK_ENV)) env[k] = v;
-  env['ANTHROPIC_AUTH_TOKEN'] = apiKey;
-
-  await setTerminalEnv(env);
-  await vscode.workspace.getConfiguration('claudeDeepseekSwitcher')
-    .update('currentModel', 'deepseek', vscode.ConfigurationTarget.Global);
-
-  updateStatusBar('deepseek');
-  await applyStatusBarTheme('deepseek');
-  await reloadTerminals('Deepseek');
-  return true;
+async function openTerminal(model) {
+  if (!vscode.workspace.isTrusted) {
+    vscode.window.showWarningMessage('Trust this workspace before opening an AI terminal with credentials.');
+    return;
+  }
+  let key;
+  if (model === 'deepseek') {
+    key = await secrets.get('deepseekApiKey') || await promptKey();
+    if (!key) return;
+  }
+  // Null removes inherited routing overrides from this terminal only.
+  const env = Object.fromEntries(MANAGED_ENV_KEYS.map(name => [name, null]));
+  if (model === 'deepseek') Object.assign(env, DEEPSEEK_ENV, { ANTHROPIC_AUTH_TOKEN: key, ANTHROPIC_API_KEY: null });
+  const terminal = vscode.window.createTerminal({
+    name: `Claude Code (${model === 'deepseek' ? 'DeepSeek' : 'Claude'})`,
+    env, isTransient: true,
+  });
+  terminals.set(terminal, model);
+  terminal.show();
+  updateStatusBar();
 }
-
-async function switchToClaude() {
-  const env = getTerminalEnv();
-  for (const key of MANAGED_ENV_KEYS) delete env[key];
-
-  await setTerminalEnv(env);
-  await vscode.workspace.getConfiguration('claudeDeepseekSwitcher')
-    .update('currentModel', 'claude', vscode.ConfigurationTarget.Global);
-
-  updateStatusBar('claude');
-  await applyStatusBarTheme('claude');
-  await reloadTerminals('Claude');
-  return true;
-}
-
-// ─── switchModel ──────────────────────────────────────────────────────────────
 
 async function switchModel() {
-  const current = currentModel();
-
-  const picked = await vscode.window.showQuickPick(
-    [
-      { label: '$(sparkle) Claude',   description: current === 'claude'   ? '● active' : '', model: 'claude' },
-      { label: '$(rocket) Deepseek',  description: current === 'deepseek' ? '● active' : '', model: 'deepseek' },
-    ],
-    { title: 'Switch AI Model', placeHolder: 'Select a model for Claude Code' }
-  );
-
-  if (!picked || picked.model === current) return;
-  if (picked.model === 'deepseek') await switchToDeepseek();
-  else await switchToClaude();
+  const picked = await vscode.window.showQuickPick([
+    { label: '$(sparkle) Claude', model: 'claude' },
+    { label: '$(rocket) DeepSeek', model: 'deepseek' },
+  ], { title: 'Open AI Terminal', placeHolder: 'Choose a provider, then run claude in the new terminal' });
+  if (picked) await openTerminal(picked.model);
 }
-
-// ─── Commands ─────────────────────────────────────────────────────────────────
 
 async function resetDeepseekApiKey() {
-  await secrets.delete('deepseekApiKey');
-  const key = await getOrPromptDeepseekKey();
-  if (!key) return;
-
-  if (currentModel() === 'deepseek') {
-    const env = getTerminalEnv();
-    env['ANTHROPIC_AUTH_TOKEN'] = key;
-    await setTerminalEnv(env);
-    await reloadTerminals('Deepseek');
-  } else {
-    vscode.window.showInformationMessage('Deepseek API key updated.');
-  }
+  if (!vscode.workspace.isTrusted) return;
+  // Cancel keeps the existing secret intact.
+  if (await promptKey()) vscode.window.showInformationMessage('DeepSeek key updated for new terminals. Close old DeepSeek terminals manually; they still hold the previous key.');
 }
 
-// ─── Activation ───────────────────────────────────────────────────────────────
+function guarded(action) {
+  return async () => {
+    if (busy) return;
+    busy = true;
+    try { await action(); }
+    catch { vscode.window.showErrorMessage('Could not complete the AI terminal operation. Check your VS Code settings and try again.'); }
+    finally { busy = false; }
+  };
+}
 
-function activate(context) {
+async function activate(context) {
   secrets = context.secrets;
-
+  await cleanLegacySettings();
   const cfg = vscode.workspace.getConfiguration('claudeDeepseekSwitcher');
-  const alignment = cfg.get('statusBarAlignment') === 'left'
-    ? vscode.StatusBarAlignment.Left
-    : vscode.StatusBarAlignment.Right;
-
-  statusBarItem = vscode.window.createStatusBarItem(alignment, 100);
+  statusBarItem = vscode.window.createStatusBarItem(cfg.get('statusBarAlignment') === 'left' ? vscode.StatusBarAlignment.Left : vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = 'claude-deepseek-switcher.switchModel';
-  const model = cfg.get('currentModel');
-  updateStatusBar(model);
-  applyStatusBarTheme(model);
   context.subscriptions.push(statusBarItem);
-  const rateTimer = setInterval(() => updateStatusBar(currentModel()), 1000);
-  context.subscriptions.push({ dispose: () => clearInterval(rateTimer) });
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('claude-deepseek-switcher.switchModel', switchModel)
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('claude-deepseek-switcher.resetDeepseekApiKey', resetDeepseekApiKey)
-  );
-
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('claudeDeepseekSwitcher.currentModel')) {
-        const m = currentModel();
-        updateStatusBar(m);
-        applyStatusBarTheme(m);
-      }
-    })
-  );
+  updateStatusBar();
+  const timer = setInterval(updateStatusBar, 1000);
+  context.subscriptions.push({ dispose: () => clearInterval(timer) });
+  context.subscriptions.push(vscode.window.onDidChangeActiveTerminal(updateStatusBar));
+  context.subscriptions.push(vscode.window.onDidCloseTerminal(terminal => { terminals.delete(terminal); updateStatusBar(); }));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-deepseek-switcher.switchModel', guarded(switchModel)));
+  context.subscriptions.push(vscode.commands.registerCommand('claude-deepseek-switcher.resetDeepseekApiKey', guarded(resetDeepseekApiKey)));
 }
 
-function deactivate() {}
+function deactivate() {
+  // Do not terminate running user work. Transient terminals are not revived.
+  terminals.clear();
+}
 
 module.exports = { activate, deactivate };

@@ -49,25 +49,6 @@
         "configuration": {
             "title": "Claude Deepseek Switcher",
             "properties": {
-                "claudeDeepseekSwitcher.currentModel": {
-                    "type": "string",
-                    "enum": [
-                        "claude",
-                        "deepseek"
-                    ],
-                    "default": "claude",
-                    "description": "The currently active AI model"
-                },
-                "claudeDeepseekSwitcher.claudeModel": {
-                    "type": "string",
-                    "default": "claude-sonnet-4-6",
-                    "description": "Claude model variant to use"
-                },
-                "claudeDeepseekSwitcher.deepseekModel": {
-                    "type": "string",
-                    "default": "deepseek-chat",
-                    "description": "Deepseek model variant to use"
-                },
                 "claudeDeepseekSwitcher.statusBarAlignment": {
                     "type": "string",
                     "enum": [
@@ -89,11 +70,17 @@
         ]
     },
     "scripts": {
-        "test": "node --test deepseek-rate.test.js",
+        "test": "node --test deepseek-rate.test.js extension.test.js",
         "lint": "eslint .",
         "package": "vsce package"
     },
     "devDependencies": {
         "@vscode/vsce": "^2.23.0"
+    },
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": false,
+            "description": "Dedicated AI terminals can expose credentials to workspace processes."
+        }
     }
 }
