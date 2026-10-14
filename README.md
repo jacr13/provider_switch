@@ -184,6 +184,8 @@ Both buttons name their target, so a glance tells them apart: the panel reads **
 
 Presets on DeepSeek's own endpoint carry a whale (🐳) where other presets have the generic rocket, on both buttons. VS Code's icon set has no whale, so this is an emoji: it keeps its own color instead of taking the preset's status bar color.
 
+The restored configurations carry the service's own mark: a starburst for Claude and a robot for Codex, which stands in for OpenAI's blossom.
+
 The Codex button behaves the same way against the configuration file: it shows the preset whose model, provider, and endpoint match, **Codex: Custom** when the file points elsewhere, and **Codex: ChatGPT** when no custom provider is selected. It is hidden entirely on machines where Codex has never run and the Codex extension is not installed.
 
 Presets using the default DeepSeek endpoint append a compact rate estimate: **Low** inside DeepSeek's off-peak discount window and **High** during peak hours. It refreshes every second using the supplied schedule: Monday-Friday, 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese holidays. This is an estimate from your clock, not live billing information.

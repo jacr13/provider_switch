@@ -26,6 +26,11 @@ const RATE_LABELS = { peak: 'High', 'off-peak': 'Low', unknown: 'Rate unknown' }
 // emoji stands in for the generic rocket on DeepSeek endpoints.
 const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : '$(rocket)';
 
+// The restored configurations carry the service's own mark instead: Claude's is
+// a starburst, which the sparkle codicon stands in for, and Codex gets the robot
+// since nothing in the codicon set matches OpenAI's blossom.
+const CODEX_ICON = '$(robot)';
+
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 
@@ -287,7 +292,7 @@ async function updateCodexStatusBar() {
   const provider = configuredPreset(codexConfigText || '', presets);
   const preset = presets.find(item => item.id === provider);
   codexStatusBarItem.text = preset ? `${endpointIcon(preset.baseUrl)} Codex: ${preset.label}`
-    : provider === 'custom' ? '$(settings-gear) Codex: Custom' : '$(sparkle) Codex: ChatGPT';
+    : provider === 'custom' ? '$(settings-gear) Codex: Custom' : `${CODEX_ICON} Codex: ChatGPT`;
   const colors = {
     chatgpt: '#10a37f', 'deepseek-flash': '#a78bfa', 'deepseek-v4-pro': '#8b5cf6',
     ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
