@@ -176,7 +176,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Provider switching changes the Claude Code extension's credentials and connection settings."
+      "description": "Provider switching changes the Claude Code extension's credentials and connection settings, and the extension keeps a copy of the Codex configuration file next to it."
     }
   }
 }

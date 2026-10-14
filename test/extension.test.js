@@ -541,6 +541,18 @@ test('a copy of the original configuration is kept beside the file', async () =>
   assert.equal(fs.existsSync(path.join(fresh.home, 'backup-provider-switcher')), false);
 });
 
+test('the copy is kept on activation, before anything switches', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  assert.equal(fs.readFileSync(path.join(app.home, 'backup-provider-switcher', 'config.toml'), 'utf8'), codexFixture);
+  // Activation still writes no settings of its own.
+  assert.equal(app.writes.length, 0);
+  assert.match(app.codexItem.text, /Codex: ChatGPT/);
+
+  // A Codex home without a configuration file has nothing to copy.
+  const bare = await setup({ secret: new Map() });
+  assert.equal(fs.existsSync(path.join(bare.home, 'backup-provider-switcher')), false);
+});
+
 test('the copy comes from the saved original, not from the live file', async () => {
   // A configuration already switched before the copy existed: the live file holds
   // the preset, and only the saved baseline knows what the original looked like.

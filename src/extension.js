@@ -379,6 +379,27 @@ async function copyCodexBackup(home, config) {
   }
 }
 
+// The copy prefers the saved original: the live file may already hold a preset,
+// and the baseline is the only record of what the file looked like before that.
+async function keepCodexCopy(home, live) {
+  let baseline = live;
+  try {
+    const saved = await secrets.get(CODEX_BACKUP_KEY);
+    if (saved) baseline = JSON.parse(saved).config;
+  } catch { /* unreadable baseline: the live file is the best record left */ }
+  await copyCodexBackup(home, baseline);
+}
+
+// Taken as early as possible, so the folder is there before the first switch. A
+// machine that never ran Codex has no home directory to put it in, and gets none.
+async function keepCodexCopyOnActivation() {
+  const home = codexHome();
+  try {
+    await fs.access(home);
+    await keepCodexCopy(home, codexConfigText);
+  } catch { /* no Codex home yet, or nothing to read */ }
+}
+
 async function setCodexPreset(provider, replacementKey) {
   if (!await canConfigureCodex()) return;
   const home = codexHome(), file = configPath(home);
@@ -404,10 +425,7 @@ async function setCodexPreset(provider, replacementKey) {
   if (!preset) return;
   const key = preset.apiKey ? replacementKey || await storedKey(preset) || await promptCodexKey(preset) : null;
   if (preset.apiKey && !key) return;
-  // Taken from the saved baseline when there is one: the live file may already
-  // hold a preset, and a user whose first switch predates this feature still gets
-  // the original copied rather than the configuration that switch left behind.
-  await copyCodexBackup(home, backup.config);
+  await keepCodexCopy(home, current);
   // Persist ownership before writing, so a partial failure stays recoverable.
   if (!saved) await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
   let createdCatalog = false;
@@ -476,6 +494,7 @@ async function activate(context) {
   context.subscriptions.push(codexStatusBarItem);
   updateStatusBar();
   await updateCodexStatusBar();
+  await keepCodexCopyOnActivation();
   const timer = setInterval(() => { updateStatusBar(); void updateCodexStatusBar(); }, 1000);
   context.subscriptions.push({ dispose: () => clearInterval(timer) });
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
