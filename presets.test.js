@@ -54,3 +54,12 @@ test('API keys are isolated by preset, endpoint and credential variable', () => 
   assert.notEqual(secretKey({ ...original, apiKeyEnv: 'ANTHROPIC_API_KEY' }), secretKey(original));
   assert.notEqual(secretKey({ ...original, environment: { ANTHROPIC_BASE_URL: 'https://other.example' } }), secretKey(original));
 });
+
+test('auto-mode server default can be overridden or omitted independently per preset', () => {
+  assert.equal(resolvePresets().presets[0].environment.CLAUDE_CODE_AUTO_MODE_SERVER, '0');
+  for (const value of ['1', null]) {
+    const { presets, errors } = resolvePresets({ deepseek: { environment: { CLAUDE_CODE_AUTO_MODE_SERVER: value } } });
+    assert.deepEqual(errors, []);
+    assert.equal(presets[0].environment.CLAUDE_CODE_AUTO_MODE_SERVER, value === null ? undefined : value);
+  }
+});

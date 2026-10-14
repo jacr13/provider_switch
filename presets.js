@@ -21,11 +21,17 @@ const DEFAULT_PRESETS = {
       CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
       CLAUDE_CODE_EFFORT_LEVEL: 'max',
       CLAUDE_CODE_AUTO_COMPACT_WINDOW: '786432',
+      CLAUDE_CODE_AUTO_MODE_SERVER: '0',
     },
   },
 };
-// Also used to restore backups made before configurable presets existed.
-const BASE_MANAGED_KEYS = [...Object.keys(CLEAR_ENV), ...Object.keys(DEFAULT_PRESETS.deepseek.environment)];
+// Keep legacy backup ownership fixed. New preset variables are tracked when applied.
+const BASE_MANAGED_KEYS = [
+  ...Object.keys(CLEAR_ENV), 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL',
+  'CLAUDE_CODE_EFFORT_LEVEL', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
+];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 function resolvePresets(config = {}) {

@@ -4,6 +4,7 @@ All notable changes to **Claude Code Switcher** will be documented here.
 
 ## [Unreleased]
 
+- Default the DeepSeek preset's `CLAUDE_CODE_AUTO_MODE_SERVER` to `"0"`, with support for overriding or omitting it through preset environment settings.
 - Restore orange Claude and purple DeepSeek status bar colors, with configurable colors for every preset through `claudeCodeSwitcher.statusBarColors`.
 - Apply color changes immediately and allow the VS Code theme default with `null`.
 

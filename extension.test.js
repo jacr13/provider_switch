@@ -88,6 +88,7 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'test-secret');
   assert.equal(app.env().ANTHROPIC_BASE_URL, 'https://api.deepseek.com/anthropic');
   assert.equal(app.env().ANTHROPIC_MODEL, 'deepseek-flash[1m]');
+  assert.equal(app.env().CLAUDE_CODE_AUTO_MODE_SERVER, '0');
   assert.equal(app.env().ANTHROPIC_API_KEY, '');
   assert.equal(app.env().CLAUDE_CODE_USE_BEDROCK, '0');
   assert.equal(app.env().CUSTOM, 'keep');
@@ -223,6 +224,7 @@ test('custom preset clears DeepSeek values and restores all owned variables afte
   assert.equal(app.env().ANTHROPIC_MODEL, 'local-model');
   assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, '');
   assert.equal(app.env().CLAUDE_CODE_EFFORT_LEVEL, undefined);
+  assert.equal(app.env().CLAUDE_CODE_AUTO_MODE_SERVER, undefined);
   assert.equal(app.env().ANTHROPIC_DEFAULT_OPUS_MODEL, undefined);
   assert.equal(app.env().LOCAL_OPTION, 'preset-value');
   assert.match(app.item.text, /Local model/);
@@ -376,4 +378,18 @@ test('status colors update live without provider writes and clear when falling b
   assert.equal(app.item.color, undefined);
   await app.switch('claude');
   assert.equal(app.item.color, '#123456');
+});
+
+test('auto-mode server setting restores its previous value and is not claimed by legacy backups', async () => {
+  const initial = { environmentVariables: [{ name: 'CLAUDE_CODE_AUTO_MODE_SERVER', value: '1' }] };
+  const app = await setup({ initial });
+  await app.switch('deepseek');
+  assert.equal(app.env().CLAUDE_CODE_AUTO_MODE_SERVER, '0');
+  await app.switch('claude');
+  assert.equal(app.env().CLAUDE_CODE_AUTO_MODE_SERVER, '1');
+
+  const secret = new Map([[BACKUP, JSON.stringify({})]]);
+  const legacy = await setup({ initial, secret });
+  await legacy.switch('claude');
+  assert.equal(legacy.env().CLAUDE_CODE_AUTO_MODE_SERVER, '1');
 });

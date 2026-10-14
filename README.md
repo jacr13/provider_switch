@@ -41,7 +41,8 @@ Each property is a stable preset ID. Override `deepseek` to change its defaults,
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
         "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-flash",
         "CLAUDE_CODE_EFFORT_LEVEL": "max",
-        "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "786432"
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "786432",
+        "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
       }
     },
     "local": {
@@ -70,6 +71,8 @@ The local URL and model ID are placeholders for your server. It must support the
 | `environment` | Environment variable names mapped to string values. New presets require `ANTHROPIC_BASE_URL`. Set model roles explicitly when needed. |
 
 DeepSeek overrides merge with the bundled defaults; other presets start independently. Use `null` for an environment value to remove a bundled value, or `"deepseek": null` to hide the built-in preset. Routing flags for Bedrock, Vertex, and Foundry remain `"0"`. Credential variables cannot be entered in `environment`; use the key prompt instead. Invalid presets are skipped with a warning when you open the picker.
+
+The DeepSeek preset defaults `CLAUDE_CODE_AUTO_MODE_SERVER` to `"0"`. This tells Claude Code not to request server-side auto-mode classifier checks and suppresses the eligibility notice. Auto mode still uses Claude Code's own classifier requests, which remain billable; it does not disable the classifier or make those requests free. The variable is temporary and may be removed by Claude Code in a future release. See [Auto mode classifier request charges](https://code.claude.com/docs/en/auto-mode-classifier-billing). You can add this variable to other presets' `environment` objects, or set it to `null` in the DeepSeek override to omit it. JSON values must be strings such as `"0"`, not shell `export` statements.
 
 After editing a preset, select it again, reload the window, and start a new chat. Editing settings alone does not apply the preset. Renaming or deleting a preset does not prevent restoring the original configuration. Saved keys belong to the preset ID, endpoint, and API key variable, so changing those may prompt for a new key. The existing DeepSeek key remains usable with its default endpoint.
 
