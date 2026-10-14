@@ -27,8 +27,8 @@ The bundled holiday calendar covers 2026 using the [official Chinese holiday sch
 
 ## Getting Started
 
-1. Install the extension from the VS Code Marketplace
-2. Look for the **✦ Claude** button in your status bar (bottom right by default)
+1. Build this fork using `scripts/build.bat` (Windows) or `bash scripts/build.sh` (macOS/Linux), then accept the installation prompt. Alternatively, use **Extensions: Install from VSIX...** and choose the rebuilt `claude-deepseek-switcher.vsix`.
+2. Find **[JACR] Claude Deepseek Switcher** in Extensions (ID: `shivampip.claude-switcher`). Run **Developer: Reload Window** if prompted, then look for **AI terminal** in the bottom-right status bar.
 3. Click it and select a model from the dropdown
 4. If switching to Deepseek for the first time, you will be prompted to enter your Deepseek API key
 5. Run `claude` in the new terminal (the CLI must already be installed).
