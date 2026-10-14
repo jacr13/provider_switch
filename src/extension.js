@@ -4,8 +4,8 @@ const vscode = require('vscode');
 const fs = require('node:fs/promises');
 const { getDeepseekRate } = require('./deepseek-rate');
 
-const { resolvePresets, secretKey, BASE_MANAGED_KEYS, DEFAULT_PRESETS } = require('./presets');
-const { resolveCodexPresets, codexSecretKey, DEFAULT_CODEX_BASE_URL } = require('./presets');
+const { resolveClaudePresets, resolveCodexPresets, splitPresets } = require('./presets');
+const { BASE_MANAGED_KEYS, DEFAULT_PRESETS, DEFAULT_CODEX_BASE_URL } = require('./presets');
 const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = require('./codex-config');
 // DeepSeek's model catalog in Codex's catalog format, written to models.json.
 const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json');
@@ -22,11 +22,47 @@ const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 
 function getPresets(notify = false) {
-  // Read user settings only: a project must not redirect a saved provider key.
-  const config = vscode.workspace.getConfiguration('providerSwitcher').inspect('presets')?.globalValue;
-  const { presets, errors } = resolvePresets(config);
+  const { presets, errors } = resolveClaudePresets(presetsSetting().claude);
   if (notify && errors.length) vscode.window.showWarningMessage(errors[0]);
   return presets;
+}
+
+// Read user settings only: a project must not redirect a saved provider key.
+// The preset setting holds one section per target.
+function presetsSetting() {
+  return splitPresets(vscode.workspace.getConfiguration('providerSwitcher').inspect('presets')?.globalValue);
+}
+
+// Keys live under one SecretStorage entry per endpoint host, so a single
+// DeepSeek key serves every preset on both targets. Keys saved under the older
+// per-preset names are adopted the first time the preset is used.
+async function storedKey(preset) {
+  const stored = await secrets.get(preset.key);
+  if (stored) return stored;
+  for (const previous of preset.previousKeys) {
+    const value = await secrets.get(previous);
+    if (!value) continue;
+    try {
+      await secrets.store(preset.key, value);
+      await secrets.delete(previous);
+    } catch { /* the key is still usable for this switch */ }
+    return value;
+  }
+  return undefined;
+}
+
+// A key is shared by every preset on the same endpoint, so replacing it also
+// refreshes whichever presets are showing it right now: the panel writes it into
+// user settings and Codex writes it into its configuration file.
+async function refreshConfiguredKeys(name, key, skip) {
+  if (skip !== 'claude') {
+    const panel = getPresets().find(preset => preset.id === configuredProvider());
+    if (panel?.key === name) await setProvider(panel.id, key);
+  }
+  if (skip !== 'codex') {
+    const codex = getCodexPresets().find(preset => preset.id === configuredPreset(codexConfigText || '', getCodexPresets()));
+    if (codex?.key === name) await setCodexPreset(codex.id, key);
+  }
 }
 
 function configuredProvider() {
@@ -62,12 +98,12 @@ function updateStatusBar() {
 async function promptKey(preset) {
   const key = await vscode.window.showInputBox({
     title: `${preset.label} key for the Claude Code extension`,
-    prompt: `Endpoint: ${preset.environment.ANTHROPIC_BASE_URL}. Saved in SecretStorage and copied to local VS Code user settings while selected. Do not share those settings.`,
+    prompt: `Endpoint: ${preset.environment.ANTHROPIC_BASE_URL}. One key is stored per endpoint host and reused by every preset that uses it, including Codex presets. Copied to local VS Code user settings while selected; do not share those.`,
     password: true, ignoreFocusOut: true,
     validateInput: value => value?.trim() ? null : 'API key cannot be empty',
   });
   if (!key?.trim()) return null;
-  await secrets.store(secretKey(preset), key.trim());
+  await secrets.store(preset.key, key.trim());
   return key.trim();
 }
 
@@ -140,7 +176,7 @@ async function setProvider(provider, replacementKey) {
   if (provider !== 'claude') {
     const preset = getPresets(true).find(item => item.id === provider);
     if (!preset) return;
-    const key = preset.apiKeyEnv === 'none' ? null : replacementKey || await secrets.get(secretKey(preset)) || await promptKey(preset);
+    const key = preset.apiKeyEnv === 'none' ? null : replacementKey || await storedKey(preset) || await promptKey(preset);
     if (preset.apiKeyEnv !== 'none' && !key) return;
     const nextKeys = Object.keys(preset.environment);
     // Capture newly claimed variables when first touched, including edits made
@@ -212,7 +248,8 @@ async function resetApiKey(presetId) {
   const key = await promptKey(preset);
   if (!key) return;
   if (active) await setProvider(preset.id, key);
-  else vscode.window.showInformationMessage(`${preset.label} key saved for the next provider switch.`);
+  await refreshConfiguredKeys(preset.key, key, active ? 'claude' : undefined);
+  if (!active) vscode.window.showInformationMessage(`${preset.label} key saved for the next provider switch.`);
 }
 
 // ---- Codex: switching rewrites ~/.codex/config.toml, which the Codex
@@ -220,9 +257,7 @@ async function resetApiKey(presetId) {
 // switcher owns is preserved byte for byte.
 
 function getCodexPresets(notify = false) {
-  // Read user settings only: a project must not redirect a saved provider key.
-  const config = vscode.workspace.getConfiguration('providerSwitcher').inspect('codexPresets')?.globalValue;
-  const { presets, errors } = resolveCodexPresets(config);
+  const { presets, errors } = resolveCodexPresets(presetsSetting().codex);
   if (notify && errors.length) vscode.window.showWarningMessage(errors[0]);
   return presets;
 }
@@ -280,12 +315,12 @@ async function canConfigureCodex() {
 async function promptCodexKey(preset) {
   const key = await vscode.window.showInputBox({
     title: `${preset.label} key for Codex`,
-    prompt: `Endpoint: ${preset.baseUrl}. Saved in SecretStorage and written to ${configPath(codexHome())} while selected. Do not share that file.`,
+    prompt: `Endpoint: ${preset.baseUrl}. One key is stored per endpoint host and reused by every preset that uses it, including Claude Code presets. Written to ${configPath(codexHome())} while selected; do not share that file.`,
     password: true, ignoreFocusOut: true,
     validateInput: value => value?.trim() ? null : 'API key cannot be empty',
   });
   if (!key?.trim()) return null;
-  await secrets.store(codexSecretKey(preset), key.trim());
+  await secrets.store(preset.key, key.trim());
   return key.trim();
 }
 
@@ -332,7 +367,7 @@ async function setCodexPreset(provider, replacementKey) {
 
   const preset = getCodexPresets(true).find(item => item.id === provider);
   if (!preset) return;
-  const key = preset.apiKey ? replacementKey || await secrets.get(codexSecretKey(preset)) || await promptCodexKey(preset) : null;
+  const key = preset.apiKey ? replacementKey || await storedKey(preset) || await promptCodexKey(preset) : null;
   if (preset.apiKey && !key) return;
   // Persist ownership before writing, so a partial failure stays recoverable.
   if (!saved) await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
@@ -372,7 +407,8 @@ async function resetCodexApiKey(provider) {
   const key = await promptCodexKey(preset);
   if (!key) return;
   if (active) await setCodexPreset(preset.id, key);
-  else vscode.window.showInformationMessage(`${preset.label} key saved for the next Codex switch.`);
+  await refreshConfiguredKeys(preset.key, key, active ? 'codex' : undefined);
+  if (!active) vscode.window.showInformationMessage(`${preset.label} key saved for the next Codex switch.`);
 }
 
 function guarded(action, failure = 'Could not update the Claude Code provider. Check that user settings are writable and SecretStorage is available, then try again.') {
@@ -418,7 +454,7 @@ async function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.switchCodexModel', guarded(switchCodexModel, CODEX_FAILURE)));
   context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.resetCodexApiKey', guarded(() => resetCodexApiKey(), CODEX_FAILURE)));
   context.subscriptions.push(vscode.commands.registerCommand('provider-switcher.configureCodexPresets', () =>
-    vscode.commands.executeCommand('workbench.action.openSettings', 'providerSwitcher.codexPresets')));
+    vscode.commands.executeCommand('workbench.action.openSettings', 'providerSwitcher.presets')));
 }
 
 function deactivate() {}

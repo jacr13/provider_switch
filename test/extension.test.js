@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createRequire } = require('node:module');
-const { resolvePresets, secretKey, resolveCodexPresets, codexSecretKey } = require('../src/presets');
+const { resolveClaudePresets, resolveCodexPresets } = require('../src/presets');
 
 // Load the entry point the way VS Code does, with relative requires resolved
 // from its own directory.
@@ -27,7 +27,7 @@ function codexHome({ config, catalog = new Map(), wsl = false } = {}) {
   return home;
 }
 
-async function setup({ initial = {}, trusted = true, installed = true, codexInstalled = true, overrides = {}, presets, codexPresets, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]), codex = {} } = {}) {
+async function setup({ initial = {}, trusted = true, installed = true, codexInstalled = true, overrides = {}, presets, codexPresets, rawSetting, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]), codex = {} } = {}) {
   const values = copy(initial), writes = [], commands = {}, messages = [], executed = [], events = {};
   const statusItems = [], outputLines = [];
   const home = codexHome(codex);
@@ -70,11 +70,15 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
         assert.ok(['claudeCode', 'providerSwitcher', 'chatgpt'].includes(section));
         if (section === 'claudeCode') return cfg;
         if (section === 'chatgpt') return { get: (name, fallback) => Object.hasOwn(switcherSettings, name) ? switcherSettings[name] : fallback };
+        // One setting, one section per target.
+        const setting = rawSetting ?? (presets === undefined && codexPresets === undefined ? undefined : {
+          ...(presets === undefined ? {} : { claude: presets }),
+          ...(codexPresets === undefined ? {} : { codex: codexPresets }),
+        });
         return {
-          get: (name, fallback) => name === 'presets' ? workspacePresets ?? presets ?? fallback :
-            name === 'codexPresets' ? codexPresets ?? fallback :
+          get: (name, fallback) => name === 'presets' ? workspacePresets ?? setting ?? fallback :
             Object.hasOwn(switcherSettings, name) ? switcherSettings[name] : fallback,
-          inspect: name => ({ globalValue: name === 'codexPresets' ? codexPresets : presets, workspaceValue: workspacePresets }),
+          inspect: name => ({ globalValue: name === 'presets' ? setting : undefined, workspaceValue: workspacePresets }),
         };
       },
       onDidChangeConfiguration: fn => { events.config = fn; return { dispose() {} }; },
@@ -107,7 +111,7 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
 }
 
 test('activation is read-only and provider comes from extension settings', async () => {
-  const environment = resolvePresets().presets[0].environment;
+  const environment = resolveClaudePresets().presets[0].environment;
   const app = await setup({ initial: { environmentVariables: Object.entries(environment).map(([name, value]) => ({ name, value })) } });
   assert.equal(app.writes.length, 0);
   assert.match(app.item.text, /DeepSeek/);
@@ -287,8 +291,8 @@ test('preset-specific credentials and reset do not reuse another provider key', 
   app.window.showQuickPick = async () => ({ model: 'other' });
   await app.commands['provider-switcher.resetApiKey']();
   assert.equal(app.env().ANTHROPIC_API_KEY, 'replacement');
-  const other = resolvePresets(presets).presets.find(preset => preset.id === 'other');
-  assert.equal(app.secret.get(secretKey(other)), 'replacement');
+  const other = resolveClaudePresets(presets).presets.find(preset => preset.id === 'other');
+  assert.equal(app.secret.get(other.key), 'replacement');
   await app.switch('deepseek');
   await app.switch('other');
   assert.equal(app.env().ANTHROPIC_API_KEY, 'replacement');
@@ -302,6 +306,14 @@ test('editing an endpoint requires a new key and workspace preset overrides are 
   const user = await setup({ workspacePresets: presets });
   await user.switch('deepseek');
   assert.equal(user.env().ANTHROPIC_BASE_URL, 'https://api.deepseek.com/anthropic');
+});
+
+test('the older flat preset setting still configures the panel', async () => {
+  // Settings written before the sections existed held the panel presets directly.
+  const app = await setup({ rawSetting: { deepseek: null, local: localPreset } });
+  await app.switch('local');
+  assert.equal(app.env().ANTHROPIC_BASE_URL, 'http://localhost:8080');
+  assert.match(app.item.text, /Local model/);
 });
 
 test('changed preset values apply only on reselection and status reflects actual configuration', async () => {
@@ -441,7 +453,7 @@ trust_level = "trusted"
 `;
 
 test('Codex preset rewrites config.toml, keeps unrelated settings, and installs the catalog', async () => {
-  const app = await setup({ codex: { config: codexFixture } });
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
   app.window.showInputBox = async () => ' sk-codex ';
   assert.match(app.codexItem.text, /Codex: ChatGPT/);
   await app.switchCodex('deepseek-v4-pro');
@@ -511,7 +523,7 @@ test('Codex guards prevent writes and report once', async () => {
 });
 
 test('cancelled Codex key entry leaves the configuration and secrets untouched', async () => {
-  const app = await setup({ codex: { config: codexFixture } });
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
   await app.switchCodex('deepseek-flash');
   assert.equal(app.read(), codexFixture);
   assert.ok(!app.secret.has(CODEX_BACKUP));
@@ -533,7 +545,7 @@ test('failed Codex write rolls back the catalog and the ownership backup', async
 });
 
 test('Codex preset-to-preset switching reuses the key and the original backup', async () => {
-  const app = await setup({ codex: { config: codexFixture } });
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
   let prompts = 0;
   app.window.showInputBox = async () => { prompts += 1; return 'sk-codex'; };
   await app.switchCodex('deepseek-flash');
@@ -546,23 +558,78 @@ test('Codex preset-to-preset switching reuses the key and the original backup', 
   assert.equal(written.match(/^model = /gm).length, 1);
   assert.equal(written.match(/^\[desktop\]$/gm).length, 1);
   assert.match(written, /^model = "deepseek-v4-pro"$/m);
+  // Both DeepSeek presets share the key stored for the endpoint.
   const flash = resolveCodexPresets().presets.find(preset => preset.id === 'deepseek-flash');
-  assert.equal(app.secret.get(codexSecretKey(flash)), 'sk-codex');
+  assert.equal(flash.key, 'deepseekApiKey');
+  assert.equal(app.secret.get(flash.key), 'sk-codex');
 });
 
-test('Codex key reset updates an active preset and stores one for an inactive preset', async () => {
-  const app = await setup({ codex: { config: codexFixture } });
+test('Codex key reset replaces the shared key and refreshes the live configuration', async () => {
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
   app.window.showInputBox = async () => 'sk-first';
   await app.switchCodex('deepseek-flash');
+  assert.match(app.read(), /experimental_bearer_token = "sk-first"/);
+  // The picker chooses deepseek-v4-pro, but both DeepSeek presets share one key,
+  // so the configuration that is live keeps working after the replacement.
+  app.window.showQuickPick = async () => ({ model: 'deepseek-v4-pro' });
   app.window.showInputBox = async () => 'sk-replaced';
   await app.commands['provider-switcher.resetCodexApiKey']();
-  assert.match(app.read(), /experimental_bearer_token = "sk-replaced"/);
-  app.window.showQuickPick = async () => ({ model: 'deepseek-v4-pro' });
-  app.window.showInputBox = async () => 'sk-later';
-  await app.commands['provider-switcher.resetCodexApiKey']();
   const pro = resolveCodexPresets().presets.find(preset => preset.id === 'deepseek-v4-pro');
-  assert.equal(app.secret.get(codexSecretKey(pro)), 'sk-later');
+  assert.equal(app.secret.get(pro.key), 'sk-replaced');
   assert.match(app.read(), /experimental_bearer_token = "sk-replaced"/);
+  assert.equal(app.read().match(/^model = "deepseek-flash"$/m).length, 1);
+});
+
+test('a key for a preset on another endpoint waits for the next switch', async () => {
+  const local = { label: 'Local', model: 'qwen3', provider: 'local', baseUrl: 'http://localhost:9999/v1', apiKey: true };
+  const app = await setup({ codex: { config: codexFixture }, codexPresets: { local }, secret: new Map() });
+  app.window.showInputBox = async () => 'sk-codex';
+  await app.switchCodex('deepseek-flash');
+  app.window.showQuickPick = async () => ({ model: 'local' });
+  app.window.showInputBox = async () => 'sk-local';
+  await app.commands['provider-switcher.resetCodexApiKey']();
+  assert.equal(app.secret.get('apiKey:http://localhost:9999'), 'sk-local');
+  // The endpoint in use is untouched, and the key is waiting for the next switch.
+  assert.match(app.read(), /experimental_bearer_token = "sk-codex"/);
+  assert.ok(app.messages.some(message => /saved for the next Codex switch/.test(message)));
+});
+
+test('a DeepSeek key entered once serves the panel and Codex', async () => {
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map() });
+  let prompts = 0;
+  app.window.showInputBox = async () => { prompts += 1; return 'sk-shared'; };
+  await app.switch('deepseek');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'sk-shared');
+  await app.switchCodex('deepseek-v4-pro');
+  // Same endpoint, so the Codex side reuses the panel's key without asking.
+  assert.equal(prompts, 1);
+  assert.match(app.read(), /experimental_bearer_token = "sk-shared"/);
+  assert.equal(app.secret.get('deepseekApiKey'), 'sk-shared');
+});
+
+test('a panel key saved under the older per-preset name is adopted', async () => {
+  const presets = { second: { label: 'Second', environment: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic' } } };
+  const legacy = 'presetApiKey:["second","https://api.deepseek.com/anthropic","ANTHROPIC_AUTH_TOKEN"]';
+  const app = await setup({ presets, secret: new Map([[legacy, 'sk-panel']]) });
+  let prompts = 0;
+  app.window.showInputBox = async () => { prompts += 1; return 'sk-new'; };
+  await app.switch('second');
+  assert.equal(prompts, 0);
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'sk-panel');
+  assert.equal(app.secret.get('deepseekApiKey'), 'sk-panel');
+  assert.equal(app.secret.has(legacy), false);
+});
+
+test('keys saved under the older per-target names are adopted once', async () => {
+  const legacy = 'codexApiKey:["deepseek","https://api.deepseek.com"]';
+  const app = await setup({ codex: { config: codexFixture }, secret: new Map([[legacy, 'sk-old']]) });
+  let prompts = 0;
+  app.window.showInputBox = async () => { prompts += 1; return 'sk-new'; };
+  await app.switchCodex('deepseek-flash');
+  assert.equal(prompts, 0);
+  assert.match(app.read(), /experimental_bearer_token = "sk-old"/);
+  assert.equal(app.secret.get('deepseekApiKey'), 'sk-old');
+  assert.equal(app.secret.has(legacy), false);
 });
 
 test('Codex state is read from the file and stays independent of the Claude panel', async () => {

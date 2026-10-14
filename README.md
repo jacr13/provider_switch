@@ -2,7 +2,7 @@
 
 Switch the **Claude Code for VS Code chat panel** and the **Codex – OpenAI's coding agent** extension between configurable provider and model presets using status bar buttons. DeepSeek is included as an editable default preset for both. You can add other Anthropic-compatible endpoints, including local servers. The switcher configures the official extensions; it does not open a terminal.
 
-The two targets are independent: each has its own status bar button, preset list, and saved keys, and switching one never changes the other. The Claude Code side rewrites VS Code user settings; the Codex side rewrites `~/.codex/config.toml`, which the Codex extension, CLI, and desktop app all share.
+The two targets are independent: each has its own status bar button, its own preset list, and switching one never changes the other. They do share credentials — one key is stored per endpoint host, so the DeepSeek key you enter once serves every preset that uses that endpoint, on both sides. The Claude Code side rewrites VS Code user settings; the Codex side rewrites `~/.codex/config.toml`, which the Codex extension, CLI, and desktop app all share.
 
 ## Requirements
 
@@ -29,14 +29,14 @@ The shortcut is `Ctrl+Alt+M` on Windows/Linux or `Cmd+Alt+M` on macOS when the e
 The rename changes the extension ID, its commands (`provider-switcher.*`), and its settings (`providerSwitcher.*`). VS Code keeps saved keys and settings per extension ID, so an upgrade does **not** carry over preset settings or stored API keys:
 
 1. Before uninstalling the old extension, switch back to **Claude** and **ChatGPT** so it restores your original configuration. Otherwise the saved backup stays behind and you restore those values by hand.
-2. Remove the old `claudeCodeSwitcher.*` settings from User `settings.json` and add the presets under `providerSwitcher.*`. The built-in DeepSeek presets need no settings at all.
+2. Remove the old `claudeCodeSwitcher.*` settings from User `settings.json` and add the presets under `providerSwitcher.presets`, inside `claude` and `codex`. The built-in DeepSeek presets need no settings at all.
 3. Re-enter the API key once per endpoint when prompted, or run **Provider Switcher: Reset Preset API Key** and **Reset Codex API Key**.
 
 ## Switch Codex models
 
 Click the **Codex** status bar button, or run **Provider Switcher: Switch Codex Model**. Choose **DeepSeek Flash**, **DeepSeek V4 Pro**, or **ChatGPT** to restore the configuration saved before the first switch.
 
-1. Choose a preset and enter its DeepSeek API key when prompted. Keys are asked for once per endpoint and reused across presets that share it.
+1. Choose a preset. If the DeepSeek key is already stored for the endpoint — because the panel side asked for it first, for example — nothing is prompted.
 2. Reload the window and start a new Codex panel so the change takes effect.
 3. Choose **ChatGPT** and reload to restore the exact configuration file saved before the first switch.
 
@@ -59,36 +59,38 @@ A running conversation is not switched in place. The status bar reports the conf
 
 ## Configure presets
 
-Run **Provider Switcher: Configure Presets**, then choose **Edit in settings.json** for the presets setting. Put `providerSwitcher.presets` in **User** settings. Workspace definitions are ignored. Presets are machine-scoped and are not synced by VS Code Settings Sync.
+Run **Provider Switcher: Configure Presets**, then choose **Edit in settings.json** for the presets setting. Everything lives in the single `providerSwitcher.presets` setting in **User** settings, under a section per target: `claude` for the panel and `codex` for Codex. Workspace definitions are ignored. Presets are machine-scoped and are not synced by VS Code Settings Sync.
 
-Each property is a stable preset ID. Override `deepseek` to change its defaults, or add an ID to create a preset. For example:
+Each property of `claude` is a stable preset ID. Override `deepseek` to change its defaults, or add an ID to create a preset. For example:
 
 ```json
 {
   "providerSwitcher.presets": {
-    "deepseek": {
-      "label": "DeepSeek",
-      "environment": {
-        "ANTHROPIC_MODEL": "deepseek-flash[1m]",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash[1m]",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash[1m]",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
-        "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-flash",
-        "CLAUDE_CODE_EFFORT_LEVEL": "max",
-        "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "786432",
-        "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
-      }
-    },
-    "local": {
-      "label": "Local model",
-      "apiKeyEnv": "none",
-      "environment": {
-        "ANTHROPIC_BASE_URL": "http://localhost:8080",
-        "ANTHROPIC_MODEL": "your-model-id",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "your-model-id",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "your-model-id",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "your-model-id",
-        "CLAUDE_CODE_SUBAGENT_MODEL": "your-model-id"
+    "claude": {
+      "deepseek": {
+        "label": "DeepSeek",
+        "environment": {
+          "ANTHROPIC_MODEL": "deepseek-flash[1m]",
+          "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash[1m]",
+          "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash[1m]",
+          "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
+          "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-flash",
+          "CLAUDE_CODE_EFFORT_LEVEL": "max",
+          "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "786432",
+          "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
+        }
+      },
+      "local": {
+        "label": "Local model",
+        "apiKeyEnv": "none",
+        "environment": {
+          "ANTHROPIC_BASE_URL": "http://localhost:8080",
+          "ANTHROPIC_MODEL": "your-model-id",
+          "ANTHROPIC_DEFAULT_OPUS_MODEL": "your-model-id",
+          "ANTHROPIC_DEFAULT_SONNET_MODEL": "your-model-id",
+          "ANTHROPIC_DEFAULT_HAIKU_MODEL": "your-model-id",
+          "CLAUDE_CODE_SUBAGENT_MODEL": "your-model-id"
+        }
       }
     }
   }
@@ -99,7 +101,7 @@ The local URL and model ID are placeholders for your server. It must support the
 
 | Field | Behavior |
 |---|---|
-| Preset ID | Lowercase letters, digits, and hyphens; start with a letter. `claude` and `custom` are reserved. |
+| Preset ID | A property of `claude`. Lowercase letters, digits, and hyphens; start with a letter. `claude` and `custom` are reserved. |
 | `label` | Picker and status bar name; defaults to the ID for new presets. |
 | `apiKeyEnv` | `ANTHROPIC_AUTH_TOKEN` (default), `ANTHROPIC_API_KEY`, or `none` for a server requiring no key. |
 | `environment` | Environment variable names mapped to string values. New presets require `ANTHROPIC_BASE_URL`. Set model roles explicitly when needed. |
@@ -108,24 +110,26 @@ DeepSeek overrides merge with the bundled defaults; other presets start independ
 
 The DeepSeek preset defaults `CLAUDE_CODE_AUTO_MODE_SERVER` to `"0"`. This tells Claude Code not to request server-side auto-mode classifier checks and suppresses the eligibility notice. Auto mode still uses Claude Code's own classifier requests, which remain billable; it does not disable the classifier or make those requests free. The variable is temporary and may be removed by Claude Code in a future release. See [Auto mode classifier request charges](https://code.claude.com/docs/en/auto-mode-classifier-billing). You can add this variable to other presets' `environment` objects, or set it to `null` in the DeepSeek override to omit it. JSON values must be strings such as `"0"`, not shell `export` statements.
 
-After editing a preset, select it again, reload the window, and start a new chat. Editing settings alone does not apply the preset. Renaming or deleting a preset does not prevent restoring the original configuration. Saved keys belong to the preset ID, endpoint, and API key variable, so changing those may prompt for a new key. The existing DeepSeek key remains usable with its default endpoint.
+After editing a preset, select it again, reload the window, and start a new chat. Editing settings alone does not apply the preset. Renaming or deleting a preset does not prevent restoring the original configuration. A saved key belongs to the endpoint host, so moving a preset to a new endpoint prompts for a key, while adding another preset on the same endpoint reuses the stored one.
 
 ## Configure Codex presets
 
-Run **Provider Switcher: Configure Codex Presets** and edit `providerSwitcher.codexPresets` in **User** settings. Workspace definitions are ignored and the setting is machine-scoped.
+Run **Provider Switcher: Configure Codex Presets** and edit the `codex` section of `providerSwitcher.presets` in **User** settings. Workspace definitions are ignored and the setting is machine-scoped.
 
 ```json
 {
-  "providerSwitcher.codexPresets": {
-    "deepseek-v4-pro": { "model": "deepseek-v4-pro" },
-    "local": {
-      "label": "Local model",
-      "model": "qwen3-coder",
-      "provider": "local",
-      "baseUrl": "http://localhost:8080/v1",
-      "wireApi": "chat",
-      "reasoningEffort": "low",
-      "apiKey": false
+  "providerSwitcher.presets": {
+    "codex": {
+      "deepseek-v4-pro": { "model": "deepseek-v4-pro" },
+      "local": {
+        "label": "Local model",
+        "model": "qwen3-coder",
+        "provider": "local",
+        "baseUrl": "http://localhost:8080/v1",
+        "wireApi": "chat",
+        "reasoningEffort": "low",
+        "apiKey": false
+      }
     }
   }
 }
@@ -133,7 +137,7 @@ Run **Provider Switcher: Configure Codex Presets** and edit `providerSwitcher.co
 
 | Field | Behavior |
 |---|---|
-| Preset ID | Lowercase letters, digits, and hyphens; start with a letter. `chatgpt` and `custom` are reserved. |
+| Preset ID | A property of `codex`. Lowercase letters, digits, and hyphens; start with a letter. `chatgpt` and `custom` are reserved. |
 | `label` | Picker and status bar name. |
 | `model` | Model name sent to the endpoint. |
 | `provider` | ID of the `[model_providers.<id>]` table, `deepseek` by default. |
@@ -142,7 +146,7 @@ Run **Provider Switcher: Configure Codex Presets** and edit `providerSwitcher.co
 | `reasoningEffort` | One of `low`, `medium`, `high`, `xhigh`, `ultra`, `max`. Defaults to `high`. |
 | `apiKey` | Whether the endpoint needs a key. Defaults to `true`; use `false` for a local endpoint that accepts none. |
 
-The built-in `deepseek-flash` and `deepseek-v4-pro` presets merge with your overrides; `"deepseek-v4-pro": null` hides one. Presets sharing a provider and endpoint share one saved key, so switching between models does not prompt again. Invalid presets are skipped with a warning when you open the picker. After editing, select the preset again and reload the window.
+The built-in `deepseek-flash` and `deepseek-v4-pro` presets merge with your overrides; `"deepseek-v4-pro": null` hides one. Both point at the DeepSeek endpoint, so they share one saved key and switching between models never prompts again. Invalid presets are skipped with a warning when you open the picker. After editing, select the preset again and reload the window.
 
 DeepSeek's own setup script and this switcher both edit `~/.codex/config.toml`, but they keep separate backups. If you installed DeepSeek with that script, run its **9** option to undo it before using this switcher, or **ChatGPT** here will return you to the script's configuration rather than to a stock Codex setup.
 
@@ -166,11 +170,11 @@ The switcher does not edit `~/.claude/settings.json`, workspace files, terminal 
 
 ## Credentials and privacy
 
-- Preset API keys and the original configuration backups use VS Code SecretStorage.
+- Preset API keys and the original configuration backups use VS Code SecretStorage. **One key is stored per endpoint host and shared by every preset that uses it, on both sides**, so the DeepSeek key you enter for the panel is also what Codex uses. Keys saved by earlier builds were kept per preset; the switcher adopts them under the shared name the first time a preset uses one.
 - **While a preset is selected, a copy of its key is stored as plaintext in the local VS Code user setting `claudeCode.environmentVariables`.** This is how the Claude Code extension receives it. Do not share or commit your user settings. That setting is machine-scoped in the official extension.
 - **A Codex preset's key is likewise written as plaintext into `~/.codex/config.toml`** while it is selected, which is how Codex accepts it. Do not share that file. Choosing **ChatGPT**, or switching to a preset without a key, removes it from the file.
 - Switching back removes the switcher's preset entries and restores the saved values. Settings backups and already-running processes may retain old credentials.
-- **Provider Switcher: Reset Preset API Key** asks which preset to update. It applies the new key immediately only if that preset matches the current configuration. Cancel keeps the existing key. Reload after replacing an active key.
+- **Provider Switcher: Reset Preset API Key** and **Reset Codex API Key** ask which preset to update. Because the key is shared, replacing it also refreshes whichever preset is configured with it on either side; a replacement for a preset on a different endpoint is stored and used on the next switch. Cancel keeps the existing key. Reload after replacing an active key.
 - Switch back to Claude before disabling or uninstalling the switcher: disabling an extension does not undo user settings.
 - The selected endpoint receives the prompts, code, and context sent through chats configured for it. This switcher collects no telemetry.
 

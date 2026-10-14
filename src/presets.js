@@ -32,8 +32,9 @@ const BASE_MANAGED_KEYS = [
   'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL',
   'CLAUDE_CODE_EFFORT_LEVEL', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
 ];
-// Codex presets are independent from the Claude Code ones: they select a model
-// for the OpenAI-compatible endpoint Codex talks to, via ~/.codex/config.toml.
+// Codex presets select a model for the OpenAI-compatible endpoint Codex talks
+// to through ~/.codex/config.toml. Switching stays independent from the panel
+// side; only the stored endpoint key is shared between them.
 const CODEX_BASE_URL = 'https://api.deepseek.com/';
 const CODEX_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'ultra', 'max'];
 const DEFAULT_CODEX_PRESETS = {
@@ -42,9 +43,43 @@ const DEFAULT_CODEX_PRESETS = {
 };
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-function resolvePresets(config = {}) {
+// Both targets keep their presets in one setting, one property per target.
+const SECTIONS = ['claude', 'codex'];
+
+function splitPresets(config) {
+  const sections = { claude: {}, codex: {} };
+  if (!object(config)) return sections;
+  // Settings written before the sections existed held the panel presets directly.
+  if (!SECTIONS.some(name => Object.hasOwn(config, name))) return { ...sections, claude: config };
+  for (const name of SECTIONS) if (object(config[name])) sections[name] = config[name];
+  return sections;
+}
+
+const DEEPSEEK_ORIGIN = 'https://api.deepseek.com';
+
+// One secret per endpoint host, shared by every preset that talks to it on
+// either side: the DeepSeek key entered once serves the panel and Codex alike.
+// The historical name is kept for DeepSeek so an existing key keeps working.
+function apiKeyName(url) {
+  const origin = new URL(url).origin;
+  return origin === DEEPSEEK_ORIGIN ? 'deepseekApiKey' : `apiKey:${origin}`;
+}
+
+// Secret names used before keys were shared per endpoint. They are read once and
+// adopted, so a key saved by an older build is not lost.
+function previousClaudeKey(id, baseUrl, apiKeyEnv) {
+  const endpoint = baseUrl.replace(/\/$/, '');
+  if (id === 'deepseek' && endpoint === DEFAULT_PRESETS.deepseek.environment.ANTHROPIC_BASE_URL && apiKeyEnv === 'ANTHROPIC_AUTH_TOKEN') return 'deepseekApiKey';
+  return `presetApiKey:${JSON.stringify([id, endpoint, apiKeyEnv])}`;
+}
+
+function previousCodexKey(provider, baseUrl) {
+  return `codexApiKey:${JSON.stringify([provider, baseUrl.replace(/\/+$/, '')])}`;
+}
+
+function resolveClaudePresets(config = {}) {
   const presets = [], errors = [];
-  if (!object(config)) return { presets, errors: ['providerSwitcher.presets must be an object.'] };
+  if (!object(config)) return { presets, errors: ['providerSwitcher.presets.claude must be an object.'] };
   for (const [id, override] of Object.entries({ ...DEFAULT_PRESETS, ...config })) {
     if (override === null) continue;
     try {
@@ -65,24 +100,19 @@ function resolvePresets(config = {}) {
       const endpoint = new URL(environment.ANTHROPIC_BASE_URL);
       if (!['https:', 'http:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error();
       if (['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY'].some(key => environment[key] !== '0')) throw new Error();
-      presets.push({ id, label: label.trim(), apiKeyEnv, environment });
+      const key = apiKeyName(environment.ANTHROPIC_BASE_URL);
+      const previous = previousClaudeKey(id, environment.ANTHROPIC_BASE_URL, apiKeyEnv);
+      presets.push({ id, label: label.trim(), apiKeyEnv, environment, key, previousKeys: previous === key ? [] : [previous] });
     } catch {
-      errors.push('Invalid preset in providerSwitcher.presets. Check its ID, label, API key variable, and environment (including ANTHROPIC_BASE_URL).');
+      errors.push('Invalid preset in providerSwitcher.presets.claude. Check its ID, label, API key variable, and environment (including ANTHROPIC_BASE_URL).');
     }
   }
   return { presets, errors };
 }
 
-function secretKey(preset) {
-  // Preserve the existing DeepSeek key, but never reuse it for a different endpoint.
-  const endpoint = preset.environment.ANTHROPIC_BASE_URL.replace(/\/$/, '');
-  if (preset.id === 'deepseek' && endpoint === DEFAULT_PRESETS.deepseek.environment.ANTHROPIC_BASE_URL && preset.apiKeyEnv === 'ANTHROPIC_AUTH_TOKEN') return 'deepseekApiKey';
-  return `presetApiKey:${JSON.stringify([preset.id, endpoint, preset.apiKeyEnv])}`;
-}
-
 function resolveCodexPresets(config = {}) {
   const presets = [], errors = [];
-  if (!object(config)) return { presets, errors: ['providerSwitcher.codexPresets must be an object.'] };
+  if (!object(config)) return { presets, errors: ['providerSwitcher.presets.codex must be an object.'] };
   for (const [id, override] of Object.entries({ ...DEFAULT_CODEX_PRESETS, ...config })) {
     if (override === null) continue;
     try {
@@ -107,20 +137,17 @@ function resolveCodexPresets(config = {}) {
           endpoint.search || endpoint.hash) throw new Error();
       if (!['responses', 'chat'].includes(wireApi) || !CODEX_EFFORTS.includes(reasoningEffort)) throw new Error();
       if (typeof apiKey !== 'boolean') throw new Error();
-      presets.push({ id, label: label.trim(), model, provider, baseUrl, wireApi, reasoningEffort, apiKey });
+      const key = apiKeyName(baseUrl);
+      const previous = previousCodexKey(provider, baseUrl);
+      presets.push({ id, label: label.trim(), model, provider, baseUrl, wireApi, reasoningEffort, apiKey, key, previousKeys: previous === key ? [] : [previous] });
     } catch {
-      errors.push('Invalid preset in providerSwitcher.codexPresets. Check its ID, label, model, provider, base URL, wire API, and reasoning effort.');
+      errors.push('Invalid preset in providerSwitcher.presets.codex. Check its ID, label, model, provider, base URL, wire API, and reasoning effort.');
     }
   }
   return { presets, errors };
 }
 
-function codexSecretKey(preset) {
-  const endpoint = preset.baseUrl.replace(/\/+$/, '');
-  return `codexApiKey:${JSON.stringify([preset.provider, endpoint])}`;
-}
-
 module.exports = {
-  resolvePresets, secretKey, BASE_MANAGED_KEYS, DEFAULT_PRESETS,
-  resolveCodexPresets, codexSecretKey, DEFAULT_CODEX_PRESETS, DEFAULT_CODEX_BASE_URL: CODEX_BASE_URL,
+  splitPresets, apiKeyName, BASE_MANAGED_KEYS, DEFAULT_PRESETS,
+  resolveClaudePresets, resolveCodexPresets, DEFAULT_CODEX_PRESETS, DEFAULT_CODEX_BASE_URL: CODEX_BASE_URL,
 };

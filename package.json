@@ -75,50 +75,55 @@
           "type": "object",
           "scope": "machine",
           "default": {},
-          "markdownDescription": "Provider presets for Anthropic-compatible endpoints. Edit in User Settings JSON. The built-in `deepseek` preset is merged with your overrides; set it to `null` to hide it. New IDs add presets. Keys are prompted for and saved separately. After editing, select the preset again and reload the window.",
-          "patternProperties": {
-            "^(?!claude$|custom$)[a-z][a-z0-9-]*$": {
-              "type": ["object", "null"],
-              "additionalProperties": false,
-              "properties": {
-                "label": { "type": "string", "minLength": 1, "description": "Name shown in the preset picker and status bar." },
-                "apiKeyEnv": {
-                  "type": "string",
-                  "enum": ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "none"],
-                  "default": "ANTHROPIC_AUTH_TOKEN",
-                  "description": "Variable receiving the separately stored API key. Use none for an endpoint that needs no key."
-                },
-                "environment": {
-                  "type": "object",
-                  "description": "Environment variables for this preset. ANTHROPIC_BASE_URL is required for new presets. Values are strings; null removes an inherited value. Do not put credentials here. Cloud-provider routing flags must remain 0.",
-                  "patternProperties": {
-                    "^(?!ANTHROPIC_AUTH_TOKEN$|ANTHROPIC_API_KEY$|CLAUDE_CODE_OAUTH_TOKEN$)[A-Z_][A-Z0-9_]*$": { "type": ["string", "null"] }
-                  },
-                  "additionalProperties": false
+          "markdownDescription": "Presets for both targets, edited in User Settings JSON. `claude` holds the provider presets offered by the Claude Code status bar button; `codex` holds the model presets offered by the Codex button. Built-in DeepSeek presets merge with your overrides; set one to `null` to hide it. New IDs add presets. One key is stored per endpoint host and reused by every preset that uses it, on both sides. After editing, select the preset again and reload the window.",
+          "properties": {
+            "claude": {
+              "type": "object",
+              "description": "Provider presets for Anthropic-compatible endpoints.",
+              "patternProperties": {
+                "^(?!claude$|custom$)[a-z][a-z0-9-]*$": {
+                  "type": ["object", "null"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": { "type": "string", "minLength": 1, "description": "Name shown in the preset picker and status bar." },
+                    "apiKeyEnv": {
+                      "type": "string",
+                      "enum": ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "none"],
+                      "default": "ANTHROPIC_AUTH_TOKEN",
+                      "description": "Variable receiving the separately stored API key. Use none for an endpoint that needs no key."
+                    },
+                    "environment": {
+                      "type": "object",
+                      "description": "Environment variables for this preset. ANTHROPIC_BASE_URL is required for new presets. Values are strings; null removes an inherited value. Do not put credentials here. Cloud-provider routing flags must remain 0.",
+                      "patternProperties": {
+                        "^(?!ANTHROPIC_AUTH_TOKEN$|ANTHROPIC_API_KEY$|CLAUDE_CODE_OAUTH_TOKEN$)[A-Z_][A-Z0-9_]*$": { "type": ["string", "null"] }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
                 }
-              }
-            }
-          },
-          "additionalProperties": false
-        },
-        "providerSwitcher.codexPresets": {
-          "type": "object",
-          "scope": "machine",
-          "default": {},
-          "markdownDescription": "Model presets for the Codex extension. Edit in User Settings JSON. The built-in `deepseek-flash` and `deepseek-v4-pro` presets are merged with your overrides; set one to `null` to hide it. New IDs add presets. Selecting a preset rewrites `~/.codex/config.toml`, keeping unrelated settings such as projects and MCP servers. Keys are prompted for and saved separately. After editing, select the preset again and reload the window.",
-          "patternProperties": {
-            "^(?!chatgpt$|custom$)[a-z][a-z0-9-]*$": {
-              "type": ["object", "null"],
-              "additionalProperties": false,
-              "properties": {
-                "label": { "type": "string", "minLength": 1, "description": "Name shown in the picker and status bar." },
-                "model": { "type": "string", "minLength": 1, "description": "Model name sent to the endpoint, for example deepseek-flash." },
-                "provider": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "default": "deepseek", "description": "Identifier of the [model_providers.<id>] table written to the configuration." },
-                "baseUrl": { "type": "string", "default": "https://api.deepseek.com/", "markdownDescription": "OpenAI-compatible endpoint. Must not contain credentials, a query, or a fragment." },
-                "wireApi": { "type": "string", "enum": ["responses", "chat"], "default": "responses", "description": "Protocol used to talk to the endpoint." },
-                "reasoningEffort": { "type": "string", "enum": ["low", "medium", "high", "xhigh", "ultra", "max"], "default": "high", "description": "Reasoning effort requested from the model." },
-                "apiKey": { "type": "boolean", "default": true, "description": "Whether the endpoint needs an API key. Use false for a local endpoint that accepts none." }
-              }
+              },
+              "additionalProperties": false
+            },
+            "codex": {
+              "type": "object",
+              "description": "Model presets for the Codex extension. Selecting one rewrites ~/.codex/config.toml, keeping unrelated settings such as projects and MCP servers.",
+              "patternProperties": {
+                "^(?!chatgpt$|custom$)[a-z][a-z0-9-]*$": {
+                  "type": ["object", "null"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": { "type": "string", "minLength": 1, "description": "Name shown in the picker and status bar." },
+                    "model": { "type": "string", "minLength": 1, "description": "Model name sent to the endpoint, for example deepseek-flash." },
+                    "provider": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "default": "deepseek", "description": "Identifier of the [model_providers.<id>] table written to the configuration." },
+                    "baseUrl": { "type": "string", "default": "https://api.deepseek.com/", "markdownDescription": "OpenAI-compatible endpoint. Must not contain credentials, a query, or a fragment." },
+                    "wireApi": { "type": "string", "enum": ["responses", "chat"], "default": "responses", "description": "Protocol used to talk to the endpoint." },
+                    "reasoningEffort": { "type": "string", "enum": ["low", "medium", "high", "xhigh", "ultra", "max"], "default": "high", "description": "Reasoning effort requested from the model." },
+                    "apiKey": { "type": "boolean", "default": true, "description": "Whether the endpoint needs an API key. Use false for a local endpoint that accepts none." }
+                  }
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
