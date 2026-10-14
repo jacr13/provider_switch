@@ -1,106 +1,80 @@
-# Claude Deepseek Switcher
+# [JACR] Claude Deepseek Switcher
 
-A VS Code extension that lets you seamlessly switch between **Anthropic Claude** and **Deepseek** AI models inside [Claude Code](https://docs.anthropic.com/en/docs/claude-code/getting-started) — directly from your status bar.
-
----
-
-## Features
-
-- **One-click model switching** — click the status bar button to open a model picker
-- **Terminal status indicator** ? shows the configured provider of the selected managed terminal, with DeepSeek peak/off-peak status
-- **Secret storage** ? saves the DeepSeek key in VS Code SecretStorage and passes it only to a dedicated terminal
-- **Preserves running work** ? opens a new terminal without closing existing terminals or modifying global colors
-- **Keyboard shortcut** — `Cmd+Alt+M` (Mac) / `Ctrl+Alt+M` (Windows/Linux)
-
----
+Switch the **Claude Code for VS Code chat panel** between Anthropic Claude and DeepSeek using a status bar button. The switcher configures the official Anthropic extension; it does not open a terminal.
 
 ## Requirements
 
-The DeepSeek status bar label includes `Peak` or `Off-peak (50%)` and refreshes every second. Peak windows are Monday-Friday, 01:00-04:00 and 06:00-10:00 UTC (end times excluded). Weekends and Chinese public holiday breaks are off-peak, including weekends designated as make-up working days.
+- VS Code 1.94 or later, with a trusted workspace.
+- **Claude Code for VS Code** by Anthropic (`anthropic.claude-code`). This is an extension dependency.
+- Your existing Claude sign-in or Anthropic API configuration for Claude, and a DeepSeek API key for DeepSeek.
 
-The bundled holiday calendar covers 2026 using the [official Chinese holiday schedule](https://english.beijing.gov.cn/workinginbeijing/laborrights/publicholidays/). Update `HOLIDAYS` in `deepseek-rate.js` for future years. During possible peak windows in an unsupported year, the label shows `Rate unknown`. This indicator uses the supplied pricing schedule and your computer clock; it does not query billing information.
+The Claude Code extension bundles its own runtime. A separate `claude` command on PATH is not required for the chat panel.
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/getting-started) installed and available in your `PATH`
-- A [Deepseek API key](https://platform.deepseek.com/) (only required when switching to Deepseek)
+## Install and use
 
----
+1. Run `scripts\build.bat` on Windows or `bash scripts/build.sh` on macOS/Linux. Accept the installation prompt, or use **Extensions: Install from VSIX...** and select the rebuilt `claude-deepseek-switcher.vsix`.
+2. Run **Developer: Reload Window**. Find **[JACR] Claude Deepseek Switcher** in Extensions (ID: `shivampip.claude-switcher`).
+3. Click **Claude** or **DeepSeek** in the bottom-right status bar, or run **Claude Deepseek Switcher: Switch Model** from the Command Palette.
+4. Choose **DeepSeek** and enter your key when prompted. The input explains where the key is stored.
+5. Finish any active Claude work, choose **Reload Window** in the notification, and start a **new chat in the Claude Code panel**.
+6. Choose **Claude** and reload again to restore the provider configuration saved before switching to DeepSeek.
 
-## Getting Started
+The shortcut is `Ctrl+Alt+M` on Windows/Linux or `Cmd+Alt+M` on macOS when the editor has focus. The provider setting applies to the current VS Code user profile, across projects using that profile. Other open windows may need reloading too.
 
-1. Build this fork using `scripts/build.bat` (Windows) or `bash scripts/build.sh` (macOS/Linux), then accept the installation prompt. Alternatively, use **Extensions: Install from VSIX...** and choose the rebuilt `claude-deepseek-switcher.vsix`.
-2. Find **[JACR] Claude Deepseek Switcher** in Extensions (ID: `shivampip.claude-switcher`). Run **Developer: Reload Window** if prompted, then look for **AI terminal** in the bottom-right status bar.
-3. Click it and select a model from the dropdown
-4. If switching to Deepseek for the first time, you will be prompted to enter your Deepseek API key
-5. Run `claude` in the new terminal (the CLI must already be installed).
+A running conversation is not switched in place. The status bar reports the configured provider, not a verified live request. Existing conversations can retain their previous model selection. Workspace or managed Claude settings and inherited environment variables can also affect routing.
 
----
+## What changes
 
-## How It Works
+The switcher updates these **VS Code user settings**:
 
-When you switch to **Deepseek**, the extension injects the following environment variables only into the dedicated terminal it creates:
-
-| Variable | Value |
-|---|---|
-| `ANTHROPIC_BASE_URL` | `https://api.deepseek.com/anthropic` |
-| `ANTHROPIC_MODEL` | `deepseek-flash[1m]` |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `deepseek-flash[1m]` |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `deepseek-flash[1m]` |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `deepseek-flash` |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | `deepseek-flash` |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `max` |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `786432` |
-| `ANTHROPIC_AUTH_TOKEN` | *(your Deepseek API key)* |
-
-Choosing **Claude** opens a new terminal with these routing overrides removed from that terminal environment. Existing settings and terminals stay intact. The label describes the selected managed terminal configuration, not a verified live provider; Claude Code configuration and shell startup scripts can still affect routing. Unmanaged or restored terminals show `AI terminal`.
-
----
-
-## Commands
-
-| Command | Keyboard Shortcut | Description |
+| Setting | DeepSeek | Switch back |
 |---|---|---|
-| `Claude Deepseek Switcher: Switch Model` | `Cmd+Alt+M` / `Ctrl+Alt+M` | Open the model picker |
-| `Claude Deepseek Switcher: Reset Deepseek API Key` | — | Replace the stored key for future terminals; cancel preserves it |
+| `claudeCode.environmentVariables` | Add DeepSeek routing and credentials, preserving unrelated entries | Restore saved routing and credentials, preserving unrelated edits |
+| `claudeCode.disableLoginPrompt` | `true` | Restore previous value, including an unset value |
+| `claudeCode.useTerminal` | `false` | Keep `false` to use the chat panel |
 
----
+DeepSeek uses `https://api.deepseek.com/anthropic`, with `deepseek-flash[1m]` for the main, Opus, and Sonnet roles, and `deepseek-flash` for Haiku and subagents. The existing effort (`max`) and compaction window (`786432`) configuration is retained. The switcher supplies the DeepSeek key as `ANTHROPIC_AUTH_TOKEN`, blanks the competing API key and OAuth token, and disables Bedrock, Vertex, and Foundry flags for this configuration.
 
-## Extension Settings
+Before the first DeepSeek switch, the original environment and login preference are backed up in SecretStorage. Repeated DeepSeek selections and key replacements preserve that backup. If your original configuration used another provider, switching back restores that provider. An external provider configuration without a saved backup is left intact with an explanation.
 
-| Setting | Default | Description |
-|---|---|---|
-| `claudeDeepseekSwitcher.statusBarAlignment` | `right` | Position of the status bar button (`left` or `right`) |
+The switcher does not edit `~/.claude/settings.json`, workspace files, terminal settings, permission modes, or Claude's installed files. Conflicting workspace settings and custom process wrappers are reported before changing providers. Failed updates attempt to restore the previous settings.
 
----
+## Credentials and privacy
+
+- The saved DeepSeek key and original configuration backup use VS Code SecretStorage.
+- **While DeepSeek is selected, a copy of its key is stored as plaintext in the local VS Code user setting `claudeCode.environmentVariables`.** This is how the Claude Code extension receives it. Do not share or commit your user settings. That setting is machine-scoped in the official extension.
+- Switching back removes the switcher's DeepSeek entries and restores the saved values. Settings backups and already-running processes may retain old credentials.
+- **Reset Deepseek API Key** replaces the saved key and updates the active DeepSeek configuration. Cancel keeps the existing key. Reload after replacing an active key.
+- Switch back to Claude before disabling or uninstalling the switcher: disabling an extension does not undo user settings.
+- DeepSeek receives the prompts, code, and context sent through chats configured for it. This switcher collects no telemetry.
+
+## Status indicator
+
+The DeepSeek label retains the existing peak/off-peak estimate. It refreshes every second using the supplied schedule: Monday-Friday, 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese holidays. Off-peak displays `50%`. This is an estimate from your clock, not live billing information.
+
+The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `deepseek-rate.js` for later years. Unsupported years show `Rate unknown` during possible peak windows.
+
+Set `claudeDeepseekSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button.
 
 ## Development
 
-Build on Windows with `scripts\build.bat`, or on macOS/Linux with `bash scripts/build.sh`. Both scripts install dependencies (`npm ci` when a lockfile exists), run tests, and package `claude-deepseek-switcher.vsix` in the project root. No separate compilation is needed for this JavaScript extension. Node.js and npm must be on PATH.
+The build scripts install dependencies, run tests, package the extension, and optionally install it using `code`. No compilation is needed.
 
-After a successful build, the script asks whether to install it in VS Code. Enter `y` or `yes` to install/update using the `code` command; Enter skips installation. The scripts work from any current directory and stop if a build step fails.
+```powershell
+npm.cmd ci
+npm.cmd test
+npm.cmd run lint
+npm.cmd run package -- --out claude-deepseek-switcher.vsix
+code.cmd --install-extension .\claude-deepseek-switcher.vsix --force
+```
 
-Press **F5** in VS Code to launch the Extension Development Host and test the extension locally.
+On macOS/Linux, use `npm` and `code`. Press **F5** in VS Code to start an Extension Development Host. Tests mock the VS Code API and cover provider changes, restoration, cancellation, failures, key replacement, and reload behavior. A real DeepSeek request requires your key and is not part of the tests.
 
----
+## References
 
-## Privacy & Security
-
-- New keys are persisted only using VS Code SecretStorage, not terminal settings or shell command history. Dedicated terminals are transient and are not revived across reloads.
-- The key remains available in the dedicated terminal's process environment. Shell startup scripts, Claude Code subprocesses, and commands you run there can read it. Use trusted workspaces and trusted tools. This is not a security sandbox.
-- DeepSeek receives the model requests and context sent by Claude Code when configured for DeepSeek.
-- No telemetry or analytics are collected by this extension.
-- On activation, migration removes global terminal tokens matching the stored DeepSeek key and recognized legacy DeepSeek routing values. Ambiguous tokens are left intact with a warning. Unrelated settings are preserved.
-- Previously running terminals keep their old environment. Close them manually after migration or key replacement. Rotate a previously exposed key; settings backups may still contain it.
-- Earlier versions did not save original configuration or colors, so overwritten values cannot be automatically recovered. Restore your preferred colors in VS Code settings if needed.
-- Switching and disabling do not kill terminals. Close dedicated terminals yourself when finished; disabling the extension cannot revoke credentials already inherited by processes.
-
----
-
-## Contributing
-
-Issues and pull requests are welcome at [github.com/shivam-agrawal/claude-deepseek-switcher](https://github.com/shivam-agrawal/claude-deepseek-switcher).
-
----
+- [Claude Code extension settings](https://code.claude.com/docs/en/vs-code#extension-settings)
+- [DeepSeek Anthropic-compatible API](https://api-docs.deepseek.com/guides/anthropic_api/)
 
 ## License
 
-MIT © [Shivam Agrawal](https://github.com/shivam-agrawal)
+MIT. Original project by Shivam Agrawal; JACR fork.

@@ -1,8 +1,8 @@
 {
   "name": "claude-switcher",
   "displayName": "[JACR] Claude Deepseek Switcher",
-  "description": "Seamlessly switch between Anthropic Claude and Deepseek AI models in Claude Code without leaving VS Code.",
-  "version": "1.2.0",
+  "description": "Switch the Claude Code extension chat panel between Anthropic Claude and DeepSeek.",
+  "version": "1.3.0",
   "icon": "images/icon.png",
   "publisher": "shivampip",
   "author": {
@@ -19,7 +19,7 @@
     "url": "https://github.com/shivampip/claude-deepseek-switcher/issues"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.94.0"
   },
   "categories": [
     "Other"
@@ -35,6 +35,9 @@
     "onStartupFinished"
   ],
   "main": "./extension.js",
+  "extensionDependencies": [
+    "anthropic.claude-code"
+  ],
   "contributes": {
     "commands": [
       {
@@ -71,7 +74,7 @@
   },
   "scripts": {
     "test": "node --test deepseek-rate.test.js extension.test.js",
-    "lint": "eslint .",
+    "lint": "node --check extension.js && node --check deepseek-rate.js",
     "package": "vsce package"
   },
   "devDependencies": {
@@ -80,7 +83,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Dedicated AI terminals can expose credentials to workspace processes."
+      "description": "Provider switching changes the Claude Code extension's credentials and connection settings."
     }
   }
 }

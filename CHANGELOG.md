@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0] - 2026-10-14
+
+- Switch the official Claude Code extension's chat panel between Claude and DeepSeek through its user settings.
+- Restore the previous provider configuration from SecretStorage while preserving unrelated environment edits.
+- Use the native chat panel, offer a reload after switching, and update the status bar from the configured provider.
+- Document the plaintext credential copy required in local Claude Code extension settings while DeepSeek is selected.
+- Add provider-switching regression tests and declare the official Claude Code extension dependency.
+
+## [1.2.0] - 2026-10-14
+
+- Synchronize the JACR fork's package identity, version, and local installation instructions.
+
 All notable changes to **Claude Deepseek Switcher** will be documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
