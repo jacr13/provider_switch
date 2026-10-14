@@ -86,6 +86,22 @@
           },
           "additionalProperties": false
         },
+        "claudeCodeSwitcher.statusBarColors": {
+          "type": "object",
+          "default": {
+            "claude": "#d97706",
+            "deepseek": "#a78bfa",
+            "custom": null
+          },
+          "markdownDescription": "Status bar text and icon colors by preset ID. Use `claude` for the restored Claude configuration and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
+          "patternProperties": {
+            "^[a-z][a-z0-9-]*$": {
+              "type": ["string", "null"],
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          },
+          "additionalProperties": false
+        },
         "claudeCodeSwitcher.statusBarAlignment": {
           "type": "string",
           "enum": [

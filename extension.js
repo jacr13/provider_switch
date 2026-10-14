@@ -35,6 +35,13 @@ function updateStatusBar() {
   const provider = configuredProvider();
   const preset = getPresets().find(item => item.id === provider);
   statusBarItem.text = preset ? `$(rocket) ${preset.label}` : provider === 'custom' ? '$(settings-gear) Custom provider' : '$(sparkle) Claude';
+  const colors = {
+    claude: '#d97706', deepseek: '#a78bfa',
+    ...vscode.workspace.getConfiguration('claudeCodeSwitcher').get('statusBarColors', {}),
+  };
+  const color = colors[provider];
+  // Clear the previous preset's color when the theme default is selected.
+  statusBarItem.color = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : undefined;
   statusBarItem.name = 'Claude Code Provider';
   statusBarItem.tooltip = 'Provider configured for the Claude Code extension. Click to switch. Reload the window after switching; running chats may still use their previous provider. External Claude settings can override this configuration.';
   if (preset?.environment.ANTHROPIC_BASE_URL.replace(/\/$/, '') === DEFAULT_PRESETS.deepseek.environment.ANTHROPIC_BASE_URL) {

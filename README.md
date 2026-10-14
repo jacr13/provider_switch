@@ -108,6 +108,21 @@ The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `deepseek-rate.js
 
 Set `claudeCodeSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button. If you customized alignment before the rename, update the setting key to this name.
 
+Claude uses orange and DeepSeek uses purple for the status bar text and icon. Customize colors by preset ID in `claudeCodeSwitcher.statusBarColors`:
+
+```json
+{
+  "claudeCodeSwitcher.statusBarColors": {
+    "claude": "#d97706",
+    "deepseek": "#a78bfa",
+    "local": "#00ff88",
+    "custom": null
+  }
+}
+```
+
+Use six-digit hex colors, or `null` to use your VS Code theme's default. `custom` applies when no preset matches the current provider. Additional presets use the theme color unless configured here. Color edits apply immediately without switching providers or reloading.
+
 ## References
 
 - [Claude Code extension settings](https://code.claude.com/docs/en/vs-code#extension-settings)

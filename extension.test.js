@@ -8,7 +8,7 @@ const { resolvePresets, secretKey } = require('./presets');
 const BACKUP = 'claudeExtensionSettingsBackup.v1';
 const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
-async function setup({ initial = {}, trusted = true, installed = true, overrides = {}, presets, workspacePresets, secret = new Map([['deepseekApiKey', 'test-secret']]) } = {}) {
+async function setup({ initial = {}, trusted = true, installed = true, overrides = {}, presets, workspacePresets, switcherSettings = {}, secret = new Map([['deepseekApiKey', 'test-secret']]) } = {}) {
   const values = copy(initial), writes = [], commands = {}, messages = [], executed = [], events = {};
   const item = { show() {}, dispose() {} };
   const hooks = {};
@@ -40,7 +40,8 @@ async function setup({ initial = {}, trusted = true, installed = true, overrides
       getConfiguration: section => {
         assert.ok(['claudeCode', 'claudeCodeSwitcher'].includes(section));
         return section === 'claudeCode' ? cfg : {
-          get: () => workspacePresets ?? presets,
+          get: (name, fallback) => name === 'presets' ? workspacePresets ?? presets ?? fallback :
+            Object.hasOwn(switcherSettings, name) ? switcherSettings[name] : fallback,
           inspect: () => ({ globalValue: presets, workspaceValue: workspacePresets }),
         };
       },
@@ -74,9 +75,11 @@ test('activation is read-only and provider comes from extension settings', async
   const app = await setup({ initial: { environmentVariables: Object.entries(environment).map(([name, value]) => ({ name, value })) } });
   assert.equal(app.writes.length, 0);
   assert.match(app.item.text, /DeepSeek/);
+  assert.equal(app.item.color, '#a78bfa');
   app.values.environmentVariables = [];
   app.events.config({ affectsConfiguration: () => true });
   assert.match(app.item.text, /Claude/);
+  assert.equal(app.item.color, '#d97706');
 });
 
 test('DeepSeek configures the native chat panel and preserves unrelated settings', async () => {
@@ -344,4 +347,33 @@ test('presets sharing an endpoint are distinguished by their environment', async
   assert.match(app.item.text, /Local model/);
   await app.switch('other');
   assert.match(app.item.text, /Other model/);
+});
+
+test('status colors update live without provider writes and clear when falling back to the theme', async () => {
+  const colors = { claude: '#123456', local: '#00ff88', custom: '#aaaaaa' };
+  const app = await setup({ presets: { local: localPreset }, switcherSettings: { statusBarColors: colors } });
+  assert.equal(app.item.color, '#123456');
+  await app.switch('deepseek');
+  assert.equal(app.item.color, '#a78bfa');
+  await app.switch('local');
+  assert.equal(app.item.color, '#00ff88');
+  const writes = app.writes.length;
+  colors.local = '#ff8800';
+  app.events.config({ affectsConfiguration: section => section === 'claudeCodeSwitcher' });
+  assert.equal(app.item.color, '#ff8800');
+  colors.local = null;
+  app.events.config({ affectsConfiguration: section => section === 'claudeCodeSwitcher' });
+  assert.equal(app.item.color, undefined);
+  assert.equal(app.writes.length, writes);
+  colors.local = 'invalid';
+  app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.item.color, undefined);
+  app.values.environmentVariables.find(entry => entry.name === 'ANTHROPIC_MODEL').value = 'unmatched';
+  app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.item.color, '#aaaaaa');
+  delete colors.custom;
+  app.events.config({ affectsConfiguration: () => true });
+  assert.equal(app.item.color, undefined);
+  await app.switch('claude');
+  assert.equal(app.item.color, '#123456');
 });

@@ -2,6 +2,11 @@
 
 All notable changes to **Claude Code Switcher** will be documented here.
 
+## [Unreleased]
+
+- Restore orange Claude and purple DeepSeek status bar colors, with configurable colors for every preset through `claudeCodeSwitcher.statusBarColors`.
+- Apply color changes immediately and allow the VS Code theme default with `null`.
+
 ## [0.1.0] - 2026-10-14
 
 - Initial release of Claude Code Switcher by JACR13, based on the original Claude Deepseek Switcher.
