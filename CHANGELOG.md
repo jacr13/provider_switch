@@ -4,6 +4,7 @@ All notable changes to **Provider Switcher** will be documented here.
 
 ## [Unreleased]
 
+- Label the panel's status bar item with a `Claude:` prefix, matching the Codex button, and shorten the DeepSeek rate suffix from Peak/Off-peak to High/Low.
 - Merge the two preset settings into one `providerSwitcher.presets` object with a `claude` section for the panel and a `codex` section for Codex. Settings saved in the older flat shape are still read as the `claude` section.
 - Store one API key per endpoint host instead of one per preset, so the DeepSeek key entered for the panel also serves Codex and vice versa. Replacing a key refreshes whichever presets are configured with it on either side, and keys saved by earlier builds are adopted under the shared name on first use.
 - Move the extension modules to `src/`, the test suites to `test/`, and DeepSeek's Codex model catalog to `resources/deepseek-codex-models.json`; packaged builds now land in `dist/`.

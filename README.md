@@ -180,13 +180,13 @@ The switcher does not edit `~/.claude/settings.json`, workspace files, terminal 
 
 ## Status indicator
 
-The status bar shows a preset label when its environment matches the current configuration. Changed, removed, or ambiguous preset definitions show **Custom provider** for non-Anthropic endpoints until you reselect a matching preset.
+Both buttons name their target, so a glance tells them apart: the panel reads **Claude: DeepSeek** and the Codex button **Codex: DeepSeek Flash**. The panel shows its preset label when the environment matches the current configuration; changed, removed, or ambiguous preset definitions show **Claude: Custom** for non-Anthropic endpoints until you reselect a matching preset.
 
 The Codex button behaves the same way against the configuration file: it shows the preset whose model, provider, and endpoint match, **Codex: Custom** when the file points elsewhere, and **Codex: ChatGPT** when no custom provider is selected. It is hidden entirely on machines where Codex has never run and the Codex extension is not installed.
 
-Presets using the default DeepSeek endpoint retain the existing peak/off-peak estimate. It refreshes every second using the supplied schedule: Monday-Friday, 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese holidays. This is an estimate from your clock, not live billing information.
+Presets using the default DeepSeek endpoint append a compact rate estimate: **Low** inside DeepSeek's off-peak discount window and **High** during peak hours. It refreshes every second using the supplied schedule: Monday-Friday, 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese holidays. This is an estimate from your clock, not live billing information.
 
-The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `src/deepseek-rate.js` for later years. Unsupported years show `Rate unknown` during possible peak windows.
+The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `src/deepseek-rate.js` for later years. Unsupported years show **Rate unknown** during possible peak windows.
 
 Set `providerSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button. Settings from earlier versions of the extension, such as `claudeCodeSwitcher.statusBarAlignment`, are no longer read.
 
@@ -212,7 +212,7 @@ Use six-digit hex colors, or `null` to use your VS Code theme's default. `custom
 
 | Path | Contents |
 |---|---|
-| `src/` | Extension modules: `extension.js` (activation, commands, status bar), `presets.js` (preset schema and credential keys), `codex-config.js` (rewrites `~/.codex/config.toml`), and `deepseek-rate.js` (peak/off-peak estimate). |
+| `src/` | Extension modules: `extension.js` (activation, commands, status bar), `presets.js` (preset schema and credential keys), `codex-config.js` (rewrites `~/.codex/config.toml`), and `deepseek-rate.js` (low/high rate estimate). |
 | `test/` | Node test suite, one file per module. |
 | `resources/` | `deepseek-codex-models.json`, the DeepSeek model catalog written to `$CODEX_HOME/models.json` when a Codex preset is selected. |
 | `images/` | Extension icon and status bar asset. |

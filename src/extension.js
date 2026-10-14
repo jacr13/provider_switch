@@ -18,6 +18,10 @@ let output;
 let codexConfigText = null;
 let busy = false;
 
+// DeepSeek charges less outside its peak windows, so the status bar names the
+// rate instead of the window: it reads at a glance and stays short.
+const RATE_LABELS = { peak: 'High', 'off-peak': 'Low', unknown: 'Rate unknown' };
+
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 
@@ -79,7 +83,7 @@ function configuredProvider() {
 function updateStatusBar() {
   const provider = configuredProvider();
   const preset = getPresets().find(item => item.id === provider);
-  statusBarItem.text = preset ? `$(rocket) ${preset.label}` : provider === 'custom' ? '$(settings-gear) Custom provider' : '$(sparkle) Claude';
+  statusBarItem.text = preset ? `$(rocket) Claude: ${preset.label}` : provider === 'custom' ? '$(settings-gear) Claude: Custom' : '$(sparkle) Claude';
   const colors = {
     claude: '#d97706', deepseek: '#a78bfa',
     ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
@@ -90,7 +94,7 @@ function updateStatusBar() {
   statusBarItem.name = 'Claude Code Provider';
   if (preset?.environment.ANTHROPIC_BASE_URL.replace(/\/$/, '') === DEFAULT_PRESETS.deepseek.environment.ANTHROPIC_BASE_URL) {
     const rate = getDeepseekRate();
-    statusBarItem.text += ' | ' + { peak: 'Peak', 'off-peak': 'Off-peak', unknown: 'Rate unknown' }[rate];
+    statusBarItem.text += ' | ' + RATE_LABELS[rate];
   }
   statusBarItem.show();
 }
@@ -289,7 +293,7 @@ async function updateCodexStatusBar() {
   codexStatusBarItem.name = 'Codex Provider';
   if (preset && preset.baseUrl.replace(/\/+$/, '') === DEFAULT_CODEX_BASE_URL.replace(/\/+$/, '')) {
     const rate = getDeepseekRate();
-    codexStatusBarItem.text += ' | ' + { peak: 'Peak', 'off-peak': 'Off-peak', unknown: 'Rate unknown' }[rate];
+    codexStatusBarItem.text += ' | ' + RATE_LABELS[rate];
   }
   codexStatusBarItem.show();
 }

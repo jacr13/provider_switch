@@ -134,9 +134,25 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().CUSTOM, 'keep');
   assert.equal(app.values.disableLoginPrompt, true);
   assert.equal(app.values.useTerminal, false);
-  assert.match(app.item.text, /DeepSeek/);
+  assert.match(app.item.text, /^\$\(rocket\) Claude: DeepSeek/);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
+});
+
+test('the status bar names the target and keeps the DeepSeek rate compact', async () => {
+  const app = await setup({ codex: { config: 'model = "gpt-6-astra"\n' } });
+  await app.switch('deepseek');
+  await app.switchCodex('deepseek-flash');
+  // The rate depends on the clock, so only its compact shape is fixed here.
+  const suffix = '( \\| (Low|High|Rate unknown))?';
+  assert.match(app.item.text, new RegExp(`^\\$\\(rocket\\) Claude: DeepSeek${suffix}$`));
+  assert.match(app.codexItem.text, new RegExp(`^\\$\\(rocket\\) Codex: DeepSeek Flash${suffix}$`));
+  assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
+
+  // An endpoint without a published schedule gets no suffix at all.
+  const local = await setup({ presets: { local: localPreset } });
+  await local.switch('local');
+  assert.equal(local.item.text, '$(rocket) Claude: Local model');
 });
 
 test('Claude restores credentials and login settings, retaining unrelated edits', async () => {
@@ -246,7 +262,7 @@ test('external provider without a backup is not erased or mislabeled as Claude',
   const app = await setup({ initial: { environmentVariables: [{ name: 'ANTHROPIC_BASE_URL', value: 'https://custom.example' }] } });
   await app.switch('claude');
   assert.equal(app.writes.length, 0);
-  assert.match(app.item.text, /Custom provider/);
+  assert.match(app.item.text, /Claude: Custom/);
   assert.match(app.messages[0], /no saved Claude configuration/);
 });
 
@@ -268,7 +284,7 @@ test('custom preset clears DeepSeek values and restores all owned variables afte
   assert.equal(app.env().ANTHROPIC_DEFAULT_OPUS_MODEL, undefined);
   assert.equal(app.env().LOCAL_OPTION, 'preset-value');
   assert.match(app.item.text, /Local model/);
-  assert.ok(!app.item.text.includes('peak'));
+  assert.ok(!/(Low|High|Rate unknown)/.test(app.item.text));
   await app.switch('deepseek');
   assert.equal(app.env().LOCAL_OPTION, undefined);
   const reloaded = await setup({ initial: app.values, secret: app.secret, presets: { deepseek: null } });
@@ -323,7 +339,7 @@ test('changed preset values apply only on reselection and status reflects actual
   assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
   presets.deepseek.environment.ANTHROPIC_MODEL = 'second-model';
   app.events.config({ affectsConfiguration: section => section === 'providerSwitcher' });
-  assert.match(app.item.text, /Custom provider/);
+  assert.match(app.item.text, /Claude: Custom/);
   assert.equal(app.env().ANTHROPIC_MODEL, 'first-model');
   await app.switch('deepseek');
   assert.equal(app.env().ANTHROPIC_MODEL, 'second-model');
