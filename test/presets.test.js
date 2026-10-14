@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { splitPresets, apiKeyName, resolveClaudePresets, resolveCodexPresets } = require('../src/presets');
+const { splitPresets, apiKeyName, isDeepseekEndpoint, resolveClaudePresets, resolveCodexPresets } = require('../src/presets');
 
 test('the preset setting is split per target, and the older flat shape is read as the panel section', () => {
   assert.deepEqual(splitPresets(undefined), { claude: {}, codex: {} });
@@ -64,6 +64,11 @@ test('one key per endpoint host is shared by every preset on both targets', () =
   assert.equal(pro.key, 'deepseekApiKey');
   // Panel and Codex reach DeepSeek through different paths on the same host.
   assert.equal(apiKeyName('https://api.deepseek.com/anthropic'), apiKeyName('https://api.deepseek.com/'));
+  assert.equal(isDeepseekEndpoint('https://api.deepseek.com/anthropic'), true);
+  assert.equal(isDeepseekEndpoint('https://api.deepseek.com/'), true);
+  // A lookalike host is not DeepSeek.
+  assert.equal(isDeepseekEndpoint('https://api.deepseek.com.evil.example/'), false);
+  assert.equal(isDeepseekEndpoint('http://localhost:8080'), false);
   // Other hosts keep their own key, and a host with no key is never prompted.
   assert.equal(apiKeyName('http://localhost:8080'), 'apiKey:http://localhost:8080');
   assert.notEqual(apiKeyName('https://other.example/anthropic'), 'deepseekApiKey');

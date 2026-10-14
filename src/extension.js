@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const fs = require('node:fs/promises');
 const { getDeepseekRate } = require('./deepseek-rate');
 
-const { resolveClaudePresets, resolveCodexPresets, splitPresets } = require('./presets');
+const { resolveClaudePresets, resolveCodexPresets, splitPresets, isDeepseekEndpoint } = require('./presets');
 const { BASE_MANAGED_KEYS, DEFAULT_PRESETS, DEFAULT_CODEX_BASE_URL } = require('./presets');
 const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = require('./codex-config');
 // DeepSeek's model catalog in Codex's catalog format, written to models.json.
@@ -21,6 +21,10 @@ let busy = false;
 // DeepSeek charges less outside its peak windows, so the status bar names the
 // rate instead of the window: it reads at a glance and stays short.
 const RATE_LABELS = { peak: 'High', 'off-peak': 'Low', unknown: 'Rate unknown' };
+
+// DeepSeek's mark is a whale, and the codicon set has no whale to use, so the
+// emoji stands in for the generic rocket on DeepSeek endpoints.
+const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : '$(rocket)';
 
 const claudeConfig = () => vscode.workspace.getConfiguration('claudeCode');
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
@@ -83,7 +87,7 @@ function configuredProvider() {
 function updateStatusBar() {
   const provider = configuredProvider();
   const preset = getPresets().find(item => item.id === provider);
-  statusBarItem.text = preset ? `$(rocket) Claude: ${preset.label}` : provider === 'custom' ? '$(settings-gear) Claude: Custom' : '$(sparkle) Claude';
+  statusBarItem.text = preset ? `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} Claude: ${preset.label}` : provider === 'custom' ? '$(settings-gear) Claude: Custom' : '$(sparkle) Claude';
   const colors = {
     claude: '#d97706', deepseek: '#a78bfa',
     ...vscode.workspace.getConfiguration('providerSwitcher').get('statusBarColors', {}),
@@ -282,7 +286,7 @@ async function updateCodexStatusBar() {
   const presets = getCodexPresets();
   const provider = configuredPreset(codexConfigText || '', presets);
   const preset = presets.find(item => item.id === provider);
-  codexStatusBarItem.text = preset ? `$(rocket) Codex: ${preset.label}`
+  codexStatusBarItem.text = preset ? `${endpointIcon(preset.baseUrl)} Codex: ${preset.label}`
     : provider === 'custom' ? '$(settings-gear) Codex: Custom' : '$(sparkle) Codex: ChatGPT';
   const colors = {
     chatgpt: '#10a37f', 'deepseek-flash': '#a78bfa', 'deepseek-v4-pro': '#8b5cf6',

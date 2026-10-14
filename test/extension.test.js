@@ -134,7 +134,7 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   assert.equal(app.env().CUSTOM, 'keep');
   assert.equal(app.values.disableLoginPrompt, true);
   assert.equal(app.values.useTerminal, false);
-  assert.match(app.item.text, /^\$\(rocket\) Claude: DeepSeek/);
+  assert.ok(app.item.text.startsWith('\u{1F433} Claude: DeepSeek'), app.item.text);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
 });
@@ -145,11 +145,12 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   await app.switchCodex('deepseek-flash');
   // The rate depends on the clock, so only its compact shape is fixed here.
   const suffix = '( \\| (Low|High|Rate unknown))?';
-  assert.match(app.item.text, new RegExp(`^\\$\\(rocket\\) Claude: DeepSeek${suffix}$`));
-  assert.match(app.codexItem.text, new RegExp(`^\\$\\(rocket\\) Codex: DeepSeek Flash${suffix}$`));
+  const whale = '\u{1F433}';
+  assert.match(app.item.text, new RegExp(`^${whale} Claude: DeepSeek${suffix}$`));
+  assert.match(app.codexItem.text, new RegExp(`^${whale} Codex: DeepSeek Flash${suffix}$`));
   assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
 
-  // An endpoint without a published schedule gets no suffix at all.
+  // Another endpoint keeps the rocket and gets no rate suffix at all.
   const local = await setup({ presets: { local: localPreset } });
   await local.switch('local');
   assert.equal(local.item.text, '$(rocket) Claude: Local model');

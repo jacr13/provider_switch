@@ -55,14 +55,17 @@ function splitPresets(config) {
   return sections;
 }
 
-const DEEPSEEK_ORIGIN = 'https://api.deepseek.com';
+const DEEPSEEK_HOST = 'api.deepseek.com';
+
+// DeepSeek's own endpoint, wherever it is mounted: the panel and Codex reach it
+// through different paths, and both count as the one provider.
+const isDeepseekEndpoint = url => new URL(url).hostname === DEEPSEEK_HOST;
 
 // One secret per endpoint host, shared by every preset that talks to it on
 // either side: the DeepSeek key entered once serves the panel and Codex alike.
 // The historical name is kept for DeepSeek so an existing key keeps working.
 function apiKeyName(url) {
-  const origin = new URL(url).origin;
-  return origin === DEEPSEEK_ORIGIN ? 'deepseekApiKey' : `apiKey:${origin}`;
+  return isDeepseekEndpoint(url) ? 'deepseekApiKey' : `apiKey:${new URL(url).origin}`;
 }
 
 // Secret names used before keys were shared per endpoint. They are read once and
@@ -148,6 +151,6 @@ function resolveCodexPresets(config = {}) {
 }
 
 module.exports = {
-  splitPresets, apiKeyName, BASE_MANAGED_KEYS, DEFAULT_PRESETS,
+  splitPresets, apiKeyName, isDeepseekEndpoint, BASE_MANAGED_KEYS, DEFAULT_PRESETS,
   resolveClaudePresets, resolveCodexPresets, DEFAULT_CODEX_PRESETS, DEFAULT_CODEX_BASE_URL: CODEX_BASE_URL,
 };
