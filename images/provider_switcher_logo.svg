@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 515 553" width="515" height="553" fill="none">
+  <defs>
+    <linearGradient id="brainGradient" x1="26" y1="275" x2="490" y2="275" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#398CF0"/>
+      <stop offset="0.45" stop-color="#438EF5"/>
+      <stop offset="0.56" stop-color="#7057EC"/>
+      <stop offset="1" stop-color="#7548E3"/>
+    </linearGradient>
+    <linearGradient id="arrowsGradient" x1="130" y1="275" x2="389" y2="275" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#398CF0"/>
+      <stop offset="0.44" stop-color="#428CF1"/>
+      <stop offset="0.56" stop-color="#645AF0"/>
+      <stop offset="1" stop-color="#7147E5"/>
+    </linearGradient>
+  </defs>
+  <!-- The two brain hemispheres. All joints are tangent-continuous cubic curves. -->
+  <g stroke="url(#brainGradient)" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 234 131 L 234 65 C 234 45 220 38 201 39 C 170 39 142 65 134 105 C 89 101 51 136 54 183 C 54 191 55 199 58 206 C 38 225 27 245 27 277 C 27 302 35 325 51 345 C 40 370 47 402 62 426 C 78 451 103 466 136 466 C 144 495 162 512 192 512 C 216 512 234 501 234 474 L 234 451"/>
+    <path d="M 283 119 L 283 65 C 283 47 293 39 313 39 C 350 39 380 65 388 104 C 431 104 464 136 464 178 C 464 188 463 198 460 206 C 479 222 489 248 489 276 C 489 305 481 326 463 346 C 473 371 470 402 455 426 C 437 455 411 469 378 466 C 368 494 349 512 319 512 C 295 512 283 501 283 478 L 283 451"/>
+    <!-- minor cortical folds -->
+    <path d="M 59 347 C 67 332 78 324 94 320"/>
+    <path d="M 137 464 C 133 453 134 438 138 427"/>
+    <path d="M 387 105 C 390 119 386 130 377 138"/>
+    <path d="M 459 207 C 448 206 432 209 422 218"/>
+  </g>
+  <!-- Bidirectional switching arrows -->
+  <g stroke="url(#arrowsGradient)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 137 243 C 148 217 168 199 199 199 L 326 199"/>
+    <path d="M 291 163 L 335 201 L 291 239"/>
+    <path d="M 381 322 C 371 351 350 368 319 368 L 191 368"/>
+    <path d="M 226 329 L 183 368 L 226 408"/>
+  </g>
+  <!-- Center seam and short hemisphere separators -->
+  <g stroke="url(#brainGradient)" stroke-width="25" stroke-linecap="round">
+    <path d="M 234 260 L 234 285"/>
+    <path d="M 283 285 L 283 305"/>
+  </g>
+</svg>
