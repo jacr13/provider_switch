@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getDeepseekRate } = require('./deepseek-rate');
+const { getDeepseekRate } = require('../src/deepseek-rate');
 
 test('UTC peak window boundaries', () => {
   for (const [time, expected] of [

@@ -2,8 +2,11 @@
 .claude/**
 .git/**
 .gitignore
-node_modules/**
-*.vsix
-*.test.js
-scripts/**
+.editorconfig
 .gitattributes
+node_modules/**
+dist/**
+*.vsix
+test/**
+scripts/**
+package-lock.json

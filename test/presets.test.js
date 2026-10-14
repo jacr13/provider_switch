@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolvePresets, secretKey, resolveCodexPresets, codexSecretKey } = require('./presets');
+const { resolvePresets, secretKey, resolveCodexPresets, codexSecretKey } = require('../src/presets');
 
 test('DeepSeek overrides merge and null removes inherited environment values', () => {
   const { presets, errors } = resolvePresets({ deepseek: { label: 'My DeepSeek', environment: {

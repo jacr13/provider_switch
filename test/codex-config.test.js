@@ -1,8 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyPreset, configuredPreset, tomlString } = require('./codex-config');
-const { resolveCodexPresets } = require('./presets');
+const { applyPreset, configuredPreset, tomlString } = require('../src/codex-config');
+const { resolveCodexPresets } = require('../src/presets');
 
 const preset = resolveCodexPresets().presets.find(item => item.id === 'deepseek-flash');
 const options = { apiKey: 'sk-test-secret', catalogPath: 'C:\\Users\\test\\.codex\\models.json' };

@@ -21,8 +21,8 @@ printf 'Running tests...\n'
 npm test
 
 printf 'Packaging extension...\n'
-package="$PWD/provider-switcher.vsix"
-npm run package -- --out "$package"
+package="$PWD/dist/provider-switcher.vsix"
+npm run package
 
 printf '\nBuilt: %s\n' "$package"
 answer=''

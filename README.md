@@ -15,7 +15,7 @@ The Claude Code extension bundles its own runtime. A separate `claude` command o
 
 ## Install and use
 
-1. Run `scripts\build.bat` on Windows or `bash scripts/build.sh` on macOS/Linux. Accept the installation prompt, or use **Extensions: Install from VSIX...** and select the rebuilt `provider-switcher.vsix`.
+1. Run `scripts\build.bat` on Windows or `bash scripts/build.sh` on macOS/Linux. Accept the installation prompt, or use **Extensions: Install from VSIX...** and select the rebuilt `dist/provider-switcher.vsix`.
 2. Run **Developer: Reload Window**. Find **Provider Switcher** in Extensions (ID: `jacr.provider-switcher`).
 3. Click the provider name in the bottom-right status bar, or run **Provider Switcher: Switch Preset** from the Command Palette.
 4. Choose a preset (initially **DeepSeek**) and enter its key when prompted. The input shows the destination endpoint and explains where the key is stored.
@@ -182,7 +182,7 @@ The Codex button behaves the same way against the configuration file: it shows t
 
 Presets using the default DeepSeek endpoint retain the existing peak/off-peak estimate. It refreshes every second using the supplied schedule: Monday-Friday, 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese holidays. This is an estimate from your clock, not live billing information.
 
-The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `deepseek-rate.js` for later years. Unsupported years show `Rate unknown` during possible peak windows.
+The bundled holiday calendar covers 2026. Update `HOLIDAYS` in `src/deepseek-rate.js` for later years. Unsupported years show `Rate unknown` during possible peak windows.
 
 Set `providerSwitcher.statusBarAlignment` to `left` or `right` (default) and reload to reposition the button. Settings from earlier versions of the extension, such as `claudeCodeSwitcher.statusBarAlignment`, are no longer read.
 
@@ -204,11 +204,25 @@ Both status buttons read the same map: `claude` and `chatgpt` style the restored
 
 Use six-digit hex colors, or `null` to use your VS Code theme's default. `custom` applies when no preset matches the current provider. Additional presets use the theme color unless configured here. Color edits apply immediately without switching providers or reloading.
 
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `src/` | Extension modules: `extension.js` (activation, commands, status bar), `presets.js` (preset schema and credential keys), `codex-config.js` (rewrites `~/.codex/config.toml`), and `deepseek-rate.js` (peak/off-peak estimate). |
+| `test/` | Node test suite, one file per module. |
+| `resources/` | `codex-models.json`, the catalog written to `$CODEX_HOME/models.json` for Codex presets. |
+| `images/` | Extension icon and status bar asset. |
+| `scripts/` | Build and install scripts for Windows and macOS/Linux. |
+| `dist/` | Build output (`provider-switcher.vsix`). Not tracked by Git. |
+| `.vscode/` | Launch configuration for running the extension from source. |
+
+Set up with `npm ci`, then `npm test` runs the suites, `npm run lint` syntax-checks the modules, and `npm run package` writes `dist/provider-switcher.vsix`.
+
 ## References
 
 - [Claude Code extension settings](https://code.claude.com/docs/en/vs-code#extension-settings)
 - [DeepSeek Anthropic-compatible API](https://api-docs.deepseek.com/guides/anthropic_api/)
-- [DeepSeek Codex setup](https://api-docs.deepseek.com/quick_start/agent_integrations/codex) — the configuration this switcher's Codex presets follow. `codex-models.json` is the model catalog from DeepSeek's setup script.
+- [DeepSeek Codex setup](https://api-docs.deepseek.com/quick_start/agent_integrations/codex) — the configuration this switcher's Codex presets follow. `resources/codex-models.json` is the model catalog from DeepSeek's setup script.
 
 ## License
 

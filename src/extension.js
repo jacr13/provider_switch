@@ -7,7 +7,7 @@ const { getDeepseekRate } = require('./deepseek-rate');
 const { resolvePresets, secretKey, BASE_MANAGED_KEYS, DEFAULT_PRESETS } = require('./presets');
 const { resolveCodexPresets, codexSecretKey, DEFAULT_CODEX_BASE_URL } = require('./presets');
 const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = require('./codex-config');
-const CODEX_CATALOG = require('./codex-models.json');
+const CODEX_CATALOG = require('../resources/codex-models.json');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
 let secrets;

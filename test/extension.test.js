@@ -5,7 +5,14 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolvePresets, secretKey, resolveCodexPresets, codexSecretKey } = require('./presets');
+const { createRequire } = require('node:module');
+const { resolvePresets, secretKey, resolveCodexPresets, codexSecretKey } = require('../src/presets');
+
+// Load the entry point the way VS Code does, with relative requires resolved
+// from its own directory.
+const EXTENSION = path.join(__dirname, '..', 'src', 'extension.js');
+const requireFromExtension = createRequire(EXTENSION);
+const extensionSource = fs.readFileSync(EXTENSION, 'utf8');
 
 const BACKUP = 'claudeExtensionSettingsBackup.v1';
 const CODEX_BACKUP = 'codexConfigBackup.v1';
@@ -78,8 +85,8 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
     },
   };
   const module = { exports: {} };
-  vm.runInNewContext(fs.readFileSync('extension.js', 'utf8'), {
-    module, require: name => name === 'vscode' ? vscode : require(name),
+  vm.runInNewContext(extensionSource, {
+    module, require: name => name === 'vscode' ? vscode : requireFromExtension(name),
     setInterval: () => 1, clearInterval() {},
   });
   await module.exports.activate({ subscriptions: [], secrets: {

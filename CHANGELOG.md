@@ -4,6 +4,8 @@ All notable changes to **Provider Switcher** will be documented here.
 
 ## [Unreleased]
 
+- Move the extension modules to `src/`, the test suites to `test/`, and the Codex model catalog to `resources/`; packaged builds now land in `dist/`.
+
 ## [0.2.0] - 2026-10-14
 
 - Rename the extension to **Provider Switcher** (ID `jacr.provider-switcher`) with the description "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek included." Commands move to `provider-switcher.*` and settings to `providerSwitcher.*`; upgrading from **Claude Code Switcher** means re-applying preset settings and re-entering saved keys.

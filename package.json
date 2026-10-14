@@ -37,7 +37,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./extension.js",
+  "main": "./src/extension.js",
   "extensionDependencies": [
     "anthropic.claude-code"
   ],
@@ -160,9 +160,10 @@
     ]
   },
   "scripts": {
-    "test": "node --test deepseek-rate.test.js extension.test.js presets.test.js codex-config.test.js",
-    "lint": "node --check extension.js && node --check deepseek-rate.js && node --check presets.js && node --check codex-config.js",
-    "package": "vsce package"
+    "prepackage": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\"",
+    "test": "node --test test/deepseek-rate.test.js test/extension.test.js test/presets.test.js test/codex-config.test.js",
+    "lint": "node --check src/extension.js && node --check src/deepseek-rate.js && node --check src/presets.js && node --check src/codex-config.js",
+    "package": "vsce package --out dist/provider-switcher.vsix"
   },
   "devDependencies": {
     "@vscode/vsce": "^2.23.0"
