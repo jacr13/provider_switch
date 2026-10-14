@@ -2,9 +2,9 @@
   "name": "provider-switcher",
   "displayName": "Provider Switcher",
   "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek included.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "icon": "images/provider_switcher_logo.png",
-  "publisher": "jacr13",
+  "publisher": "jacr",
   "author": {
     "name": "JACR13",
     "email": "jacr@gmail.com"

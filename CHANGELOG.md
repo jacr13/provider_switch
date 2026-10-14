@@ -2,6 +2,10 @@
 
 All notable changes to **Provider Switcher** will be documented here.
 
+## [0.3.3] - 2026-10-14
+
+- Restore the publisher ID to `jacr` so updates retain the published extension ID, `jacr.provider-switcher`.
+
 ## [0.3.2] - 2026-10-14
 
 - Correct the publisher ID to `jacr13` (`jacr13.provider-switcher`).
