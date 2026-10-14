@@ -43,11 +43,9 @@ function updateStatusBar() {
   // Clear the previous preset's color when the theme default is selected.
   statusBarItem.color = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : undefined;
   statusBarItem.name = 'Claude Code Provider';
-  statusBarItem.tooltip = 'Provider configured for the Claude Code extension. Click to switch. Reload the window after switching; running chats may still use their previous provider. External Claude settings can override this configuration.';
   if (preset?.environment.ANTHROPIC_BASE_URL.replace(/\/$/, '') === DEFAULT_PRESETS.deepseek.environment.ANTHROPIC_BASE_URL) {
     const rate = getDeepseekRate();
     statusBarItem.text += ' | ' + { peak: 'Peak', 'off-peak': 'Off-peak', unknown: 'Rate unknown' }[rate];
-    statusBarItem.tooltip += '\nRate estimate uses the bundled 2026 holiday calendar and your clock, not live billing.';
   }
   statusBarItem.show();
 }
