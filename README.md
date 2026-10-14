@@ -74,6 +74,10 @@ Choosing **Claude** opens a new terminal with these routing overrides removed fr
 
 ## Development
 
+Build on Windows with `scripts\build.bat`, or on macOS/Linux with `bash scripts/build.sh`. Both scripts install dependencies (`npm ci` when a lockfile exists), run tests, and package `claude-deepseek-switcher.vsix` in the project root. No separate compilation is needed for this JavaScript extension. Node.js and npm must be on PATH.
+
+After a successful build, the script asks whether to install it in VS Code. Enter `y` or `yes` to install/update using the `code` command; Enter skips installation. The scripts work from any current directory and stop if a build step fails.
+
 Press **F5** in VS Code to launch the Extension Development Host and test the extension locally.
 
 ---
