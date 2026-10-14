@@ -541,6 +541,20 @@ test('a copy of the original configuration is kept beside the file', async () =>
   assert.equal(fs.existsSync(path.join(fresh.home, 'backup-provider-switcher')), false);
 });
 
+test('the copy comes from the saved original, not from the live file', async () => {
+  // A configuration already switched before the copy existed: the live file holds
+  // the preset, and only the saved baseline knows what the original looked like.
+  const applied = 'model = "deepseek-flash"\nmodel_provider = "deepseek"\n';
+  const saved = JSON.stringify({ config: codexFixture, catalogCreated: false });
+  const app = await setup({ codex: { config: applied }, secret: new Map([[CODEX_BACKUP, saved]]) });
+  app.window.showInputBox = async () => 'sk-codex';
+  await app.switchCodex('deepseek-v4-pro');
+  assert.equal(fs.readFileSync(path.join(app.home, 'backup-provider-switcher', 'config.toml'), 'utf8'), codexFixture);
+  // The live file is the switched configuration; only the copy is the original.
+  assert.match(app.read(), /^model = "deepseek-v4-pro"$/m);
+  assert.notEqual(app.read(), codexFixture);
+});
+
 test('Codex guards prevent writes and report once', async () => {
   const untrusted = await setup({ trusted: false, codex: { config: codexFixture } });
   await untrusted.switchCodex('deepseek-flash');

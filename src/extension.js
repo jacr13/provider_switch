@@ -361,8 +361,8 @@ async function writeCodexCatalog(home, backup) {
 
 // DeepSeek's own setup script keeps a plain copy of the file it changed, and the
 // same copy outlives this extension: secret storage is gone after an uninstall,
-// while a file next to the original can always be copied back by hand. It is
-// written once, before the first switch, and never overwritten afterwards.
+// while a file next to the original can always be copied back by hand. It holds
+// the file as it was before the first switch and is never overwritten.
 async function copyCodexBackup(home, config) {
   if (config === null) return;
   const target = path.join(home, CODEX_BACKUP_DIR, 'config.toml');
@@ -404,11 +404,12 @@ async function setCodexPreset(provider, replacementKey) {
   if (!preset) return;
   const key = preset.apiKey ? replacementKey || await storedKey(preset) || await promptCodexKey(preset) : null;
   if (preset.apiKey && !key) return;
+  // Taken from the saved baseline when there is one: the live file may already
+  // hold a preset, and a user whose first switch predates this feature still gets
+  // the original copied rather than the configuration that switch left behind.
+  await copyCodexBackup(home, backup.config);
   // Persist ownership before writing, so a partial failure stays recoverable.
-  if (!saved) {
-    await copyCodexBackup(home, current);
-    await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
-  }
+  if (!saved) await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
   let createdCatalog = false;
   try {
     createdCatalog = await writeCodexCatalog(home, backup);
