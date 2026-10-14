@@ -8,15 +8,9 @@ A **preset** is a saved set of connection settings: the provider’s API address
 
 ## Install
 
-### Download a GitHub build
+### Download
 
 Download `provider-switcher.vsix` from the latest [GitHub Release](https://github.com/jacr13/Provider-Switcher/releases). In VS Code, use **Extensions: Install from VSIX...** to install it, then run **Developer: Reload Window**.
-
-For development builds, open [Build VSIX in GitHub Actions](https://github.com/jacr13/Provider-Switcher/actions/workflows/build-vsix.yml), select a successful run, and download **provider-switcher-vsix** under **Artifacts** (GitHub sign-in required). Extract the ZIP to get the VSIX.
-
-Builds run on pushes to `main`, version tags (`v*`), and pull requests targeting `main`. You can also start one with **Run workflow**. Downloads are retained for 30 days.
-
-Pushing a version tag matching `package.json` (for example, `v0.3.0`) also creates a GitHub Release and attaches the VSIX. Release downloads remain available beyond the workflow artifact retention period.
 
 ### Build locally
 
