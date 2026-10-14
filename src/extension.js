@@ -7,7 +7,8 @@ const { getDeepseekRate } = require('./deepseek-rate');
 const { resolvePresets, secretKey, BASE_MANAGED_KEYS, DEFAULT_PRESETS } = require('./presets');
 const { resolveCodexPresets, codexSecretKey, DEFAULT_CODEX_BASE_URL } = require('./presets');
 const { applyPreset, configuredPreset, codexHome, configPath, catalogPath } = require('./codex-config');
-const CODEX_CATALOG = require('../resources/codex-models.json');
+// DeepSeek's model catalog in Codex's catalog format, written to models.json.
+const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
 let secrets;
@@ -302,7 +303,7 @@ async function offerCodexReload(label) {
 async function writeCodexCatalog(home, backup) {
   try { await fs.access(catalogPath(home)); return false; }
   catch { /* not created by us yet */ }
-  await fs.writeFile(catalogPath(home), `${JSON.stringify(CODEX_CATALOG, null, 2)}\n`);
+  await fs.writeFile(catalogPath(home), `${JSON.stringify(DEEPSEEK_CODEX_CATALOG, null, 2)}\n`);
   backup.catalogCreated = true;
   await secrets.store(CODEX_BACKUP_KEY, JSON.stringify(backup));
   return true;

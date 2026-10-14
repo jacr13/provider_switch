@@ -210,7 +210,7 @@ Use six-digit hex colors, or `null` to use your VS Code theme's default. `custom
 |---|---|
 | `src/` | Extension modules: `extension.js` (activation, commands, status bar), `presets.js` (preset schema and credential keys), `codex-config.js` (rewrites `~/.codex/config.toml`), and `deepseek-rate.js` (peak/off-peak estimate). |
 | `test/` | Node test suite, one file per module. |
-| `resources/` | `codex-models.json`, the catalog written to `$CODEX_HOME/models.json` for Codex presets. |
+| `resources/` | `deepseek-codex-models.json`, the DeepSeek model catalog written to `$CODEX_HOME/models.json` when a Codex preset is selected. |
 | `images/` | Extension icon and status bar asset. |
 | `scripts/` | Build and install scripts for Windows and macOS/Linux. |
 | `dist/` | Build output (`provider-switcher.vsix`). Not tracked by Git. |
@@ -222,7 +222,7 @@ Set up with `npm ci`, then `npm test` runs the suites, `npm run lint` syntax-che
 
 - [Claude Code extension settings](https://code.claude.com/docs/en/vs-code#extension-settings)
 - [DeepSeek Anthropic-compatible API](https://api-docs.deepseek.com/guides/anthropic_api/)
-- [DeepSeek Codex setup](https://api-docs.deepseek.com/quick_start/agent_integrations/codex) — the configuration this switcher's Codex presets follow. `resources/codex-models.json` is the model catalog from DeepSeek's setup script.
+- [DeepSeek Codex setup](https://api-docs.deepseek.com/quick_start/agent_integrations/codex) — the configuration this switcher's Codex presets follow. `resources/deepseek-codex-models.json` is the DeepSeek-only model catalog from that setup script.
 
 ## License
 

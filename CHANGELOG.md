@@ -4,7 +4,7 @@ All notable changes to **Provider Switcher** will be documented here.
 
 ## [Unreleased]
 
-- Move the extension modules to `src/`, the test suites to `test/`, and the Codex model catalog to `resources/`; packaged builds now land in `dist/`.
+- Move the extension modules to `src/`, the test suites to `test/`, and DeepSeek's Codex model catalog to `resources/deepseek-codex-models.json`; packaged builds now land in `dist/`.
 
 ## [0.2.0] - 2026-10-14
 
