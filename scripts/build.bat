@@ -30,7 +30,7 @@ call npm run package
 if errorlevel 1 goto :failed
 
 echo.
-echo Built: %CD%\dist\provider-switcher.vsix
+echo Built: %CD%\dist\provider-switch.vsix
 set "installAnswer="
 set /p "installAnswer=Install this build in VS Code? [y/N]: "
 if /i "%installAnswer%"=="y" goto :install
@@ -46,7 +46,7 @@ if errorlevel 1 (
   echo Use Extensions: Install from VSIX in VS Code to install the built file.
   goto :failed
 )
-call code --install-extension "%CD%\dist\provider-switcher.vsix" --force
+call code --install-extension "%CD%\dist\provider-switch.vsix" --force
 if errorlevel 1 goto :failed
 echo Installed. Run Developer: Reload Window in VS Code.
 popd

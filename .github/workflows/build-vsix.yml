@@ -46,8 +46,8 @@ jobs:
       - name: Upload VSIX
         uses: actions/upload-artifact@v6
         with:
-          name: provider-switcher-vsix
-          path: dist/provider-switcher.vsix
+          name: provider-switch-vsix
+          path: dist/provider-switch.vsix
           if-no-files-found: error
           retention-days: 30
 
@@ -58,7 +58,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/provider-switcher.vsix --clobber
+            gh release upload "$RELEASE_TAG" dist/provider-switch.vsix --clobber
           else
-            gh release create "$RELEASE_TAG" dist/provider-switcher.vsix --verify-tag --title "$RELEASE_TAG" --generate-notes
+            gh release create "$RELEASE_TAG" dist/provider-switch.vsix --verify-tag --title "$RELEASE_TAG" --generate-notes
           fi

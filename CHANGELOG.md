@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to **Provider Switcher** will be documented here.
+All notable changes to **Provider Switch** will be documented here.
+
+## [0.4.0]
+
+- Rename the extension to **Provider Switch**, with ID `jacr.provider-switch`, commands `provider-switch.*`, and settings `providerSwitch.*`.
+- Rename backup folders, the backup-home environment override, logo assets, and packaged VSIX to match.
+- Restore both targets in the old extension before uninstalling it. Rename user settings from `providerSwitcher.*` to `providerSwitch.*`, install the new extension, and re-enter API keys. Keep existing backup files until migration is complete.
 
 ## [0.3.3] - 2026-10-14
 

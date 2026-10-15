@@ -82,7 +82,7 @@ function previousCodexKey(provider, baseUrl) {
 
 function resolveClaudePresets(config = {}) {
   const presets = [], errors = [];
-  if (!object(config)) return { presets, errors: ['providerSwitcher.presets.claude must be an object.'] };
+  if (!object(config)) return { presets, errors: ['providerSwitch.presets.claude must be an object.'] };
   for (const [id, override] of Object.entries({ ...DEFAULT_PRESETS, ...config })) {
     if (override === null) continue;
     try {
@@ -107,7 +107,7 @@ function resolveClaudePresets(config = {}) {
       const previous = previousClaudeKey(id, environment.ANTHROPIC_BASE_URL, apiKeyEnv);
       presets.push({ id, label: label.trim(), apiKeyEnv, environment, key, previousKeys: previous === key ? [] : [previous] });
     } catch {
-      errors.push('Invalid preset in providerSwitcher.presets.claude. Check its ID, label, API key variable, and environment (including ANTHROPIC_BASE_URL).');
+      errors.push('Invalid preset in providerSwitch.presets.claude. Check its ID, label, API key variable, and environment (including ANTHROPIC_BASE_URL).');
     }
   }
   return { presets, errors };
@@ -115,7 +115,7 @@ function resolveClaudePresets(config = {}) {
 
 function resolveCodexPresets(config = {}) {
   const presets = [], errors = [];
-  if (!object(config)) return { presets, errors: ['providerSwitcher.presets.codex must be an object.'] };
+  if (!object(config)) return { presets, errors: ['providerSwitch.presets.codex must be an object.'] };
   for (const [id, override] of Object.entries({ ...DEFAULT_CODEX_PRESETS, ...config })) {
     if (override === null) continue;
     try {
@@ -144,7 +144,7 @@ function resolveCodexPresets(config = {}) {
       const previous = previousCodexKey(provider, baseUrl);
       presets.push({ id, label: label.trim(), model, provider, baseUrl, wireApi, reasoningEffort, apiKey, key, previousKeys: previous === key ? [] : [previous] });
     } catch {
-      errors.push('Invalid preset in providerSwitcher.presets.codex. Check its ID, label, model, provider, base URL, wire API, and reasoning effort.');
+      errors.push('Invalid preset in providerSwitch.presets.codex. Check its ID, label, model, provider, base URL, wire API, and reasoning effort.');
     }
   }
   return { presets, errors };

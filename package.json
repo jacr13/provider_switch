@@ -1,9 +1,9 @@
 {
-  "name": "provider-switcher",
-  "displayName": "Provider Switcher",
+  "name": "provider-switch",
+  "displayName": "Provider Switch",
   "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek included.",
-  "version": "0.3.3",
-  "icon": "images/provider_switcher_logo.png",
+  "version": "0.4.0",
+  "icon": "images/provider_switch_logo.png",
   "publisher": "jacr",
   "author": {
     "name": "JACR13",
@@ -12,11 +12,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jacr13/Provider-Switcher"
+    "url": "https://github.com/jacr13/Provider-Switch"
   },
-  "homepage": "https://github.com/jacr13/Provider-Switcher#readme",
+  "homepage": "https://github.com/jacr13/Provider-Switch#readme",
   "bugs": {
-    "url": "https://github.com/jacr13/Provider-Switcher/issues"
+    "url": "https://github.com/jacr13/Provider-Switch/issues"
   },
   "engines": {
     "vscode": "^1.94.0"
@@ -41,34 +41,34 @@
   "contributes": {
     "commands": [
       {
-        "command": "provider-switcher.switchModel",
-        "title": "Provider Switcher: Switch Preset"
+        "command": "provider-switch.switchModel",
+        "title": "Provider Switch: Switch Preset"
       },
       {
-        "command": "provider-switcher.resetApiKey",
-        "title": "Provider Switcher: Reset Preset API Key"
+        "command": "provider-switch.resetApiKey",
+        "title": "Provider Switch: Reset Preset API Key"
       },
       {
-        "command": "provider-switcher.configurePresets",
-        "title": "Provider Switcher: Configure Presets"
+        "command": "provider-switch.configurePresets",
+        "title": "Provider Switch: Configure Presets"
       },
       {
-        "command": "provider-switcher.switchCodexModel",
-        "title": "Provider Switcher: Switch Codex Model"
+        "command": "provider-switch.switchCodexModel",
+        "title": "Provider Switch: Switch Codex Model"
       },
       {
-        "command": "provider-switcher.resetCodexApiKey",
-        "title": "Provider Switcher: Reset Codex API Key"
+        "command": "provider-switch.resetCodexApiKey",
+        "title": "Provider Switch: Reset Codex API Key"
       },
       {
-        "command": "provider-switcher.configureCodexPresets",
-        "title": "Provider Switcher: Configure Codex Presets"
+        "command": "provider-switch.configureCodexPresets",
+        "title": "Provider Switch: Configure Codex Presets"
       }
     ],
     "configuration": {
-      "title": "Provider Switcher",
+      "title": "Provider Switch",
       "properties": {
-        "providerSwitcher.presets": {
+        "providerSwitch.presets": {
           "type": "object",
           "scope": "machine",
           "default": {},
@@ -125,7 +125,7 @@
           },
           "additionalProperties": false
         },
-        "providerSwitcher.statusBarColors": {
+        "providerSwitch.statusBarColors": {
           "type": "object",
           "default": {
             "claude": "#d97706",
@@ -141,7 +141,7 @@
           },
           "additionalProperties": false
         },
-        "providerSwitcher.statusBarAlignment": {
+        "providerSwitch.statusBarAlignment": {
           "type": "string",
           "enum": [
             "left",
@@ -154,7 +154,7 @@
     },
     "keybindings": [
       {
-        "command": "provider-switcher.switchModel",
+        "command": "provider-switch.switchModel",
         "key": "ctrl+alt+m",
         "mac": "cmd+alt+m",
         "when": "editorFocus"
@@ -165,7 +165,7 @@
     "prepackage": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\"",
     "test": "node --test test/deepseek-rate.test.js test/extension.test.js test/presets.test.js test/codex-config.test.js",
     "lint": "node --check src/extension.js && node --check src/deepseek-rate.js && node --check src/presets.js && node --check src/codex-config.js",
-    "package": "vsce package --out dist/provider-switcher.vsix"
+    "package": "vsce package --out dist/provider-switch.vsix"
   },
   "devDependencies": {
     "@vscode/vsce": "^2.23.0"
