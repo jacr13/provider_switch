@@ -889,8 +889,8 @@ test('Kimi shares one key across Claude and Codex and clears its variables on sw
   let prompts = 0;
   app.window.showInputBox = async () => { prompts++; return 'kimi-test-key'; };
   await app.switch('kimi');
-  assert.equal(app.env().ANTHROPIC_API_KEY, 'kimi-test-key');
-  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, '');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'kimi-test-key');
+  assert.equal(app.env().ANTHROPIC_API_KEY, '');
   assert.equal(app.env().ANTHROPIC_DEFAULT_FABLE_MODEL, 'k3-256k');
   assert.equal(app.env().CLAUDE_CODE_MAX_CONTEXT_TOKENS, '262144');
   assert.match(app.item.text, /Kimi K3 256K/);
@@ -921,6 +921,23 @@ test('Kimi shares one key across Claude and Codex and clears its variables on sw
   assert.equal(app.read(), codexFixture);
   assert.equal(fs.existsSync(path.join(app.home, 'provider-switch-kimi-models.json')), false);
   assert.equal(fs.existsSync(path.join(app.home, 'models.json')), false);
+});
+
+test('reselecting Kimi replaces API-key auth with bearer auth using the saved endpoint key', async () => {
+  const environment = { ...resolveClaudePresets().presets.find(preset => preset.id === 'kimi').environment,
+    ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_API_KEY: 'saved-kimi-key' };
+  const app = await setup({
+    initial: { environmentVariables: Object.entries(environment).map(([name, value]) => ({ name, value })) },
+    secret: new Map([['apiKey:https://api.kimi.ai', 'saved-kimi-key']]),
+  });
+  app.window.showInputBox = async () => { throw new Error('Should reuse the saved key'); };
+  await app.switch('kimi');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'saved-kimi-key');
+  assert.equal(app.env().ANTHROPIC_API_KEY, '');
+  assert.equal(app.env().CLAUDE_CODE_OAUTH_TOKEN, '');
+  assert.equal(app.env().ANTHROPIC_BASE_URL, 'https://api.kimi.ai/coding/');
+  assert.equal(app.env().ANTHROPIC_MODEL, 'k3-256k');
+  assert.match(app.item.text, /Kimi K3 256K/);
 });
 
 test('Kimi leaves existing Codex catalogs untouched and restores the original configuration', async () => {
@@ -1043,7 +1060,7 @@ for (const target of ['claude', 'codex']) {
     };
     await app.commands[target === 'claude' ? 'provider-switch.switchModel' : 'provider-switch.switchCodexModel']();
     assert.equal(app.secret.get('apiKey:https://api.kimi.ai'), 'new-kimi-key');
-    if (target === 'claude') assert.equal(app.env().ANTHROPIC_API_KEY, 'new-kimi-key');
+    if (target === 'claude') assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'new-kimi-key');
     else assert.match(app.read(), /experimental_bearer_token = "new-kimi-key"/);
     // Selecting the provider afterwards reuses the replacement.
     await (target === 'claude' ? app.switch('kimi') : app.switchCodex('kimi'));

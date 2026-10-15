@@ -8,7 +8,9 @@ const models = [
   { id: 'kimi-k3', label: 'Kimi K3 1M', model: 'k3', claudeModel: 'k3[1m]', context: 1048576 },
 ];
 const claude = Object.fromEntries(models.map(({ id, label, claudeModel: model, context }) => [id, {
-  label, apiKeyEnv: 'ANTHROPIC_API_KEY',
+  // The VS Code panel checks AUTH_TOKEN before a saved Claude OAuth login,
+  // but checks API_KEY after it. Use bearer auth so Kimi owns the panel account.
+  label, apiKeyEnv: 'ANTHROPIC_AUTH_TOKEN',
   environment: {
     ANTHROPIC_BASE_URL: 'https://api.kimi.ai/coding/',
     ANTHROPIC_MODEL: model,

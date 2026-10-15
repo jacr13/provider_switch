@@ -146,7 +146,7 @@ test('Codex presets share the endpoint key and adopt the older provider-based na
 test('Kimi defaults use provider-specific endpoints and share a key across targets', () => {
   const panel = resolveClaudePresets().presets.find(preset => preset.id === 'kimi');
   const codex = resolveCodexPresets({ kimi: { label: 'My Kimi' } }).presets.find(preset => preset.id === 'kimi');
-  assert.equal(panel.apiKeyEnv, 'ANTHROPIC_API_KEY');
+  assert.equal(panel.apiKeyEnv, 'ANTHROPIC_AUTH_TOKEN');
   assert.equal(panel.environment.ANTHROPIC_BASE_URL, 'https://api.kimi.ai/coding/');
   assert.equal(panel.environment.ANTHROPIC_DEFAULT_FABLE_MODEL, 'k3-256k');
   assert.equal(panel.environment.CLAUDE_CODE_MAX_CONTEXT_TOKENS, '262144');
