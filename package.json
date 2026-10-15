@@ -174,7 +174,7 @@
   },
   "scripts": {
     "prepackage": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\"",
-    "test": "node --test test/deepseek-rate.test.js test/extension.test.js test/presets.test.js test/codex-config.test.js",
+    "test": "node --test test/api-key.test.js test/deepseek-rate.test.js test/extension.test.js test/presets.test.js test/codex-config.test.js",
     "lint": "node scripts/check-syntax.js",
     "package": "vsce package --out dist/provider-switch.vsix"
   },

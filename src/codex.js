@@ -1,4 +1,5 @@
 'use strict';
+const { validateAndStoreKey } = require('./api-key');
 const { resolveCodexPresets, DEFAULT_CODEX_BASE_URL } = require('./presets');
 const { applyPreset, configuredPreset, detachPreset, codexHome, configPath, catalogPath } = require('./codex-config');
 const kimi = require('./providers/kimi');
@@ -92,8 +93,7 @@ function createCodexTarget(services, codexStatusBarItem) {
       validateInput: value => value?.trim() ? null : 'API key cannot be empty',
     });
     if (!key?.trim()) return null;
-    await secrets.store(preset.key, key.trim());
-    return key.trim();
+    return validateAndStoreKey(vscode, secrets, preset, key.trim());
   }
 
   async function offerCodexReload(label) {
@@ -246,16 +246,18 @@ function createCodexTarget(services, codexStatusBarItem) {
   async function switchCodexModel() {
     const picked = await vscode.window.showQuickPick([
       { label: '$(sparkle) ChatGPT', description: 'Restore the Codex configuration saved before the first switch', model: 'chatgpt' },
-      ...getCodexPresets(true).map(preset => ({ label: `$(rocket) ${preset.label}`, description: preset.model, model: preset.id })),
+      ...getCodexPresets(true).map(preset => ({ label: `${endpointIcon(preset.baseUrl)} ${preset.label}`, description: preset.model, model: preset.id })),
+      { label: '$(key) Reconnect / Change API Key…', description: 'Enter a replacement key for DeepSeek, Kimi, or another provider', action: 'reconnect' },
     ], { title: 'Provider Switch: Switch Codex Model', placeHolder: 'Choose the model for the Codex extension' });
-    if (picked) await setCodexPreset(picked.model);
+    if (picked?.action === 'reconnect') await resetCodexApiKey();
+    else if (picked) await setCodexPreset(picked.model);
   }
 
   async function resetCodexApiKey(provider) {
     if (!await canConfigureCodex()) return;
     const presets = getCodexPresets(true).filter(preset => preset.apiKey);
     const picked = provider ? { model: provider } : await vscode.window.showQuickPick(
-      presets.map(preset => ({ label: preset.label, description: preset.model, model: preset.id })),
+      presets.map(preset => ({ label: `${endpointIcon(preset.baseUrl)} ${preset.label}`, description: preset.model, model: preset.id })),
       { title: 'Provider Switch: Reset Codex API Key', placeHolder: 'Choose the preset whose key you want to replace' },
     );
     const preset = presets.find(item => item.id === picked?.model);

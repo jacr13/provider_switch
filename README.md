@@ -37,7 +37,7 @@ Click **Claude: …** or **Codex: …** in the VS Code status bar, then choose a
 | Claude | DeepSeek Flash, DeepSeek V4 Pro, Kimi K3 256K, Kimi K3 1M | **Claude** | **Provider Switch: Switch Preset** |
 | Codex | DeepSeek Flash, DeepSeek V4 Pro, Kimi K3 256K, Kimi K3 1M | **ChatGPT** | **Provider Switch: Switch Codex Model** |
 
-Enter the provider’s API key when prompted. Finish any active work, reload VS Code, and **start a new chat**. An existing conversation may keep using its previous model.
+Enter the provider’s API key when prompted. A connection check reports whether the provider returns its model list. Rejected keys are not saved; if the check cannot complete, you can cancel or save without verification. The check does not generate tokens or confirm model access or available credit. Finish any active work, reload VS Code, and **start a new chat**. An existing conversation may keep using its previous model.
 
 The **Claude** and **ChatGPT** options restore the settings saved before your first switch. If you previously used a custom provider, that provider is restored.
 
@@ -146,7 +146,7 @@ Original settings are saved in VS Code SecretStorage and the backup files above.
 
 ## API keys and privacy
 
-Keys are saved in VS Code SecretStorage and reused for presets using the same endpoint. Use **Provider Switch: Reset Preset API Key** or **Reset Codex API Key** to replace one. Reload after replacing a key used by an active preset.
+Keys are saved in VS Code SecretStorage and reused for presets using the same endpoint. To reconnect with another key, click either status bar button, choose **Reconnect / Change API Key…**, then select a DeepSeek, Kimi, or custom preset and enter the replacement key. You can also use **Provider Switch: Reset Preset API Key** or **Reset Codex API Key**. The replacement is shared with presets on the same endpoint, including the other extension. Reload after replacing a key used by an active preset.
 
 **While a preset is active, its key is also written in plaintext to Claude’s VS Code user settings or Codex’s configuration file. Backup files may contain original credentials. Do not share or commit these files.**
 

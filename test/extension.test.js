@@ -38,6 +38,11 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   process.env.PROVIDER_SWITCH_HOME = backupHome;
   const hooks = {};
   const window = {
+    withProgress: async (_options, task) => {
+      const original = globalThis.fetch;
+      globalThis.fetch = async () => ({ ok: !hooks.keyStatus || hooks.keyStatus === 200, status: hooks.keyStatus || 200, json: async () => ({ data: [] }) });
+      try { return await task(); } finally { globalThis.fetch = original; }
+    },
     createOutputChannel: () => ({ appendLine: line => outputLines.push(line), dispose() {} }),
     createStatusBarItem: (id, alignment, priority) => {
       const created = { id, alignment, priority, shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
@@ -63,7 +68,7 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
     },
   };
   const vscode = {
-    window, StatusBarAlignment: { Left: 1, Right: 2 }, ConfigurationTarget: { Global: 1 },
+    window, ProgressLocation: { Notification: 15 }, StatusBarAlignment: { Left: 1, Right: 2 }, ConfigurationTarget: { Global: 1 },
     extensions: { getExtension: id => {
       assert.ok(['anthropic.claude-code', 'openai.chatgpt'].includes(id));
       if (id === 'anthropic.claude-code') return (hooks.claudeInstalled ?? installed) ? {} : undefined;
@@ -415,7 +420,7 @@ test('old backups restore and invalid presets do not block restoration', async (
 test('picker lists configured presets and configure command opens settings', async () => {
   const app = await setup({ presets: { deepseek: null, local: localPreset } });
   app.window.showQuickPick = async items => {
-    assert.deepEqual(Array.from(items, item => item.model), ['claude', 'local']);
+    assert.deepEqual(Array.from(items.filter(item => item.model), item => item.model), ['claude', 'local']);
     return undefined;
   };
   await app.commands['provider-switch.switchModel']();
@@ -997,3 +1002,52 @@ test('status buttons share placement and visibility settings update independentl
   await app.events.config({ affectsConfiguration: name => name === 'providerSwitch' });
   assert.equal(app.codexItem.shown, false);
 });
+
+for (const target of ['claude', 'codex']) {
+  test(`${target} rejected replacement leaves saved key and configuration unchanged`, async () => {
+    const app = await setup();
+    app.hooks.keyStatus = 401;
+    app.window.showInputBox = async () => 'bad-key';
+    app.window.showQuickPick = async () => ({ model: target === 'claude' ? 'deepseek' : 'deepseek-flash' });
+    await app.commands[target === 'claude' ? 'provider-switch.resetApiKey' : 'provider-switch.resetCodexApiKey']();
+    assert.equal(app.secret.get('deepseekApiKey'), 'test-secret');
+    assert.equal(app.writes.length, 0);
+    assert.ok(app.messages.some(message => message.includes('Key not saved')));
+  });
+}
+test('inconclusive check requires explicit save without verification', async () => {
+  const app = await setup();
+  app.hooks.keyStatus = 429;
+  app.window.showInputBox = async () => 'replacement';
+  await app.commands['provider-switch.resetApiKey']();
+  assert.equal(app.secret.get('deepseekApiKey'), 'test-secret');
+  app.hooks.warning = () => 'Save Without Verification';
+  await app.commands['provider-switch.resetApiKey']();
+  assert.equal(app.secret.get('deepseekApiKey'), 'replacement');
+  assert.ok(app.messages.some(message => message.includes('saved without verification')));
+});
+
+for (const target of ['claude', 'codex']) {
+  test(`${target} picker reconnects Kimi with a replacement key`, async () => {
+    const app = await setup();
+    app.window.showInputBox = async () => 'old-kimi-key';
+    await (target === 'claude' ? app.switch('kimi') : app.switchCodex('kimi'));
+    app.window.showInputBox = async () => 'new-kimi-key';
+    let step = 0;
+    app.window.showQuickPick = async items => {
+      if (step++ === 0) {
+        assert.ok(items.some(item => item.label === 'K Kimi K3 256K'));
+        return items.find(item => item.action === 'reconnect');
+      }
+      return items.find(item => item.model === 'kimi');
+    };
+    await app.commands[target === 'claude' ? 'provider-switch.switchModel' : 'provider-switch.switchCodexModel']();
+    assert.equal(app.secret.get('apiKey:https://api.kimi.ai'), 'new-kimi-key');
+    if (target === 'claude') assert.equal(app.env().ANTHROPIC_API_KEY, 'new-kimi-key');
+    else assert.match(app.read(), /experimental_bearer_token = "new-kimi-key"/);
+    // Selecting the provider afterwards reuses the replacement.
+    await (target === 'claude' ? app.switch('kimi') : app.switchCodex('kimi'));
+    assert.match(target === 'claude' ? app.item.text : app.codexItem.text, /: K Kimi/);
+    assert.ok(app.messages.some(message => message.includes('Connection check passed')));
+  });
+}

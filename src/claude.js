@@ -1,4 +1,5 @@
 'use strict';
+const { validateAndStoreKey } = require('./api-key');
 const { resolveClaudePresets, BASE_MANAGED_KEYS, DEFAULT_PRESETS } = require('./presets');
 const BACKUP_KEY = 'claudeExtensionSettingsBackup.v1';
 
@@ -60,8 +61,7 @@ function createClaudeTarget(services, statusBarItem) {
       validateInput: value => value?.trim() ? null : 'API key cannot be empty',
     });
     if (!key?.trim()) return null;
-    await secrets.store(preset.key, key.trim());
-    return key.trim();
+    return validateAndStoreKey(vscode, secrets, preset, key.trim());
   }
 
   function canConfigure(provider) {
@@ -209,16 +209,18 @@ function createClaudeTarget(services, statusBarItem) {
   async function switchModel() {
     const picked = await vscode.window.showQuickPick([
       { label: '$(sparkle) Claude', description: 'Restore your previous Claude Code configuration', model: 'claude' },
-      ...getPresets(true).map(preset => ({ label: `$(rocket) ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
+      ...getPresets(true).map(preset => ({ label: `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
+      { label: '$(key) Reconnect / Change API Key…', description: 'Enter a replacement key for DeepSeek, Kimi, or another provider', action: 'reconnect' },
     ], { title: 'Provider Switch: Switch Preset', placeHolder: 'Choose a preset for the Claude Code extension' });
-    if (picked) await setProvider(picked.model);
+    if (picked?.action === 'reconnect') await resetApiKey();
+    else if (picked) await setProvider(picked.model);
   }
 
   async function resetApiKey(presetId) {
     if (!canConfigure(presetId || 'preset')) return;
     const presets = getPresets(true).filter(preset => preset.apiKeyEnv !== 'none');
     const picked = presetId ? { model: presetId } : await vscode.window.showQuickPick(
-      presets.map(preset => ({ label: preset.label, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
+      presets.map(preset => ({ label: `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
       { title: 'Provider Switch: Reset Preset API Key', placeHolder: 'Choose the preset whose key you want to replace' },
     );
     const preset = presets.find(item => item.id === picked?.model);

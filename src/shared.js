@@ -3,9 +3,10 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { splitPresets, isDeepseekEndpoint } = require('./presets');
+const kimi = require('./providers/kimi');
 const { getDeepseekRate } = require('./deepseek-rate');
 const RATE_LABELS = { peak: 'High', 'off-peak': 'Low', unknown: 'Rate unknown' };
-const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : '$(rocket)';
+const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : kimi.isEndpoint(url) ? 'K' : '$(rocket)';
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 const backupHome = () => process.env.PROVIDER_SWITCH_HOME || path.join(os.homedir(), '.provider-switch');
 
