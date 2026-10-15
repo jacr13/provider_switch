@@ -6,7 +6,10 @@ const { splitPresets, isDeepseekEndpoint } = require('./presets');
 const kimi = require('./providers/kimi');
 const { getDeepseekRate } = require('./deepseek-rate');
 const RATE_LABELS = { peak: 'High', 'off-peak': 'Low', unknown: 'Rate unknown' };
-const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : kimi.isEndpoint(url) ? 'K' : '$(rocket)';
+// Each endpoint is marked with its service's sign instead of a codicon, since these
+// pickers show the label in the same way everywhere: DeepSeek's whale, the crescent
+// moon of Kimi's maker, Moonshot AI, and a rocket for anything else.
+const endpointIcon = url => isDeepseekEndpoint(url) ? '🐳' : kimi.isEndpoint(url) ? '🌙' : '$(rocket)';
 const globalValue = (cfg, name) => cfg.inspect(name)?.globalValue;
 const backupHome = () => process.env.PROVIDER_SWITCH_HOME || path.join(os.homedir(), '.provider-switch');
 

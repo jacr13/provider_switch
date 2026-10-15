@@ -6,7 +6,6 @@ const kimi = require('./providers/kimi');
 const KIMI_CODEX_CATALOG = require('../resources/kimi-codex-models.json');
 const DEEPSEEK_CODEX_CATALOG = require('../resources/deepseek-codex-models.json');
 const CODEX_BACKUP_KEY = 'codexConfigBackup.v1';
-const CODEX_ICON = '🌸';
 const catalogText = catalog => `${JSON.stringify(catalog, null, 2)}\n`;
 
 
@@ -51,8 +50,8 @@ function createCodexTarget(services, codexStatusBarItem) {
     const presets = getCodexPresets();
     const provider = configuredPreset(codexConfigText || '', presets);
     const preset = presets.find(item => item.id === provider);
-    codexStatusBarItem.text = `Codex: ${preset ? `${endpointIcon(preset.baseUrl)} ${preset.label}`
-      : provider === 'custom' ? '$(settings-gear) Custom' : `${CODEX_ICON} ChatGPT`}`;
+    codexStatusBarItem.text = `Codex: ${preset ? preset.label
+      : provider === 'custom' ? 'Custom' : 'ChatGPT'}`;
     const colors = {
       chatgpt: '#10a37f', kimi: '#38bdf8', 'kimi-k3': '#0ea5e9', 'deepseek-flash': '#a78bfa', 'deepseek-v4-pro': '#8b5cf6',
       ...vscode.workspace.getConfiguration('providerSwitch').get('statusBarColors', {}),
@@ -245,10 +244,12 @@ function createCodexTarget(services, codexStatusBarItem) {
 
   async function switchCodexModel() {
     const picked = await vscode.window.showQuickPick([
-      { label: '$(sparkle) ChatGPT', description: 'Restore the Codex configuration saved before the first switch', model: 'chatgpt' },
+      // The restored configuration keeps OpenAI's blossom here, as an emoji since the
+      // codicon set has no flower. The status bar names the preset without an icon.
+      { label: '🌸 ChatGPT', description: 'Restore the Codex configuration saved before the first switch', model: 'chatgpt' },
       ...getCodexPresets(true).map(preset => ({ label: `${endpointIcon(preset.baseUrl)} ${preset.label}`, description: preset.model, model: preset.id })),
       { label: '$(key) Reconnect / Change API Key…', description: 'Enter a replacement key for DeepSeek, Kimi, or another provider', action: 'reconnect' },
-    ], { title: 'Provider Switch: Switch Codex Model', placeHolder: 'Choose the model for the Codex extension' });
+    ], { title: 'Provider Switch: Switch Codex Model', placeHolder: 'Choose the model for the Codex extension', supportThemeIcons: true });
     if (picked?.action === 'reconnect') await resetCodexApiKey();
     else if (picked) await setCodexPreset(picked.model);
   }
@@ -258,7 +259,7 @@ function createCodexTarget(services, codexStatusBarItem) {
     const presets = getCodexPresets(true).filter(preset => preset.apiKey);
     const picked = provider ? { model: provider } : await vscode.window.showQuickPick(
       presets.map(preset => ({ label: `${endpointIcon(preset.baseUrl)} ${preset.label}`, description: preset.model, model: preset.id })),
-      { title: 'Provider Switch: Reset Codex API Key', placeHolder: 'Choose the preset whose key you want to replace' },
+      { title: 'Provider Switch: Reset Codex API Key', placeHolder: 'Choose the preset whose key you want to replace', supportThemeIcons: true },
     );
     const preset = presets.find(item => item.id === picked?.model);
     if (!preset) return;

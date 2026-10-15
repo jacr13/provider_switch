@@ -180,7 +180,7 @@ test('DeepSeek configures the native chat panel and preserves unrelated settings
   // uninstall clears it.
   const kept = JSON.parse(fs.readFileSync(path.join(app.backupHome, 'claude-panel.json'), 'utf8'));
   assert.deepEqual(kept.environmentVariables, [{ name: 'CUSTOM', value: 'keep' }]);
-  assert.ok(app.item.text.startsWith('Claude: \u{1F433} DeepSeek'), app.item.text);
+  assert.ok(app.item.text.startsWith('Claude: DeepSeek'), app.item.text);
   assert.equal(app.executed.length, 0);
   assert.ok(app.secret.has(BACKUP));
 });
@@ -191,17 +191,16 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   await app.switchCodex('deepseek-flash');
   // The rate depends on the clock, so only its compact shape is fixed here.
   const suffix = '( \\| (Low|High|Rate unknown))?';
-  const whale = '\u{1F433}';
-  assert.match(app.item.text, new RegExp(`^Claude: ${whale} DeepSeek Flash${suffix}$`));
-  assert.match(app.codexItem.text, new RegExp(`^Codex: ${whale} DeepSeek Flash${suffix}$`));
+  assert.match(app.item.text, new RegExp(`^Claude: DeepSeek Flash${suffix}$`));
+  assert.match(app.codexItem.text, new RegExp(`^Codex: DeepSeek Flash${suffix}$`));
   assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
 
-  // Another endpoint keeps the rocket and gets no rate suffix at all.
+  // Another endpoint gets no rate suffix at all.
   const local = await setup({ presets: { local: localPreset } });
   await local.switch('local');
-  assert.equal(local.item.text, 'Claude: $(rocket) Local model');
-  // Restored configurations carry the service's own mark.
-  assert.equal(local.codexItem.text, 'Codex: \u{1F338} ChatGPT');
+  assert.equal(local.item.text, 'Claude: Local model');
+  // Restored configurations are named without a status-bar icon.
+  assert.equal(local.codexItem.text, 'Codex: ChatGPT');
 });
 
 test('Claude restores credentials and login settings, retaining unrelated edits', async () => {
@@ -421,6 +420,8 @@ test('picker lists configured presets and configure command opens settings', asy
   const app = await setup({ presets: { deepseek: null, local: localPreset } });
   app.window.showQuickPick = async items => {
     assert.deepEqual(Array.from(items.filter(item => item.model), item => item.model), ['claude', 'local']);
+    assert.ok(items.some(item => item.label === '❄️ Claude'));
+    assert.ok(items.some(item => item.label === '$(rocket) Local model'));
     return undefined;
   };
   await app.commands['provider-switch.switchModel']();
@@ -1051,9 +1052,13 @@ for (const target of ['claude', 'codex']) {
     await (target === 'claude' ? app.switch('kimi') : app.switchCodex('kimi'));
     app.window.showInputBox = async () => 'new-kimi-key';
     let step = 0;
-    app.window.showQuickPick = async items => {
+    app.window.showQuickPick = async (items, options) => {
       if (step++ === 0) {
-        assert.ok(items.some(item => item.label === 'K Kimi K3 256K'));
+        // The restored configuration keeps its mark in the picker, and the codicons
+        // the preset entries carry only render when the picker supports theme icons.
+        assert.equal(options.supportThemeIcons, true);
+        assert.ok(items.some(item => item.label === (target === 'claude' ? '❄️ Claude' : '🌸 ChatGPT')));
+        assert.ok(items.some(item => item.label === '🌙 Kimi K3 256K'));
         return items.find(item => item.action === 'reconnect');
       }
       return items.find(item => item.model === 'kimi');
@@ -1064,7 +1069,7 @@ for (const target of ['claude', 'codex']) {
     else assert.match(app.read(), /experimental_bearer_token = "new-kimi-key"/);
     // Selecting the provider afterwards reuses the replacement.
     await (target === 'claude' ? app.switch('kimi') : app.switchCodex('kimi'));
-    assert.match(target === 'claude' ? app.item.text : app.codexItem.text, /: K Kimi/);
+    assert.match(target === 'claude' ? app.item.text : app.codexItem.text, /: Kimi/);
     assert.ok(app.messages.some(message => message.includes('Connection check passed')));
   });
 }

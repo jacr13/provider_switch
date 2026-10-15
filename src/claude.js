@@ -36,8 +36,8 @@ function createClaudeTarget(services, statusBarItem) {
     const preset = getPresets().find(item => item.id === provider);
     // The target comes first, so both buttons read the same way round. The whole
     // item carries one color, so the label cannot be tinted on its own.
-    statusBarItem.text = `Claude: ${preset ? `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`
-      : provider === 'custom' ? '$(settings-gear) Custom' : '$(sparkle) Claude'}`;
+    statusBarItem.text = `Claude: ${preset ? preset.label
+      : provider === 'custom' ? 'Custom' : 'Claude'}`;
     const colors = {
       claude: '#d97706', deepseek: '#a78bfa', 'deepseek-v4-pro': '#8b5cf6', kimi: '#38bdf8', 'kimi-k3': '#0ea5e9',
       ...vscode.workspace.getConfiguration('providerSwitch').get('statusBarColors', {}),
@@ -208,10 +208,10 @@ function createClaudeTarget(services, statusBarItem) {
 
   async function switchModel() {
     const picked = await vscode.window.showQuickPick([
-      { label: '$(sparkle) Claude', description: 'Restore your previous Claude Code configuration', model: 'claude' },
+      { label: '❄️ Claude', description: 'Restore your previous Claude Code configuration', model: 'claude' },
       ...getPresets(true).map(preset => ({ label: `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
       { label: '$(key) Reconnect / Change API Key…', description: 'Enter a replacement key for DeepSeek, Kimi, or another provider', action: 'reconnect' },
-    ], { title: 'Provider Switch: Switch Preset', placeHolder: 'Choose a preset for the Claude Code extension' });
+    ], { title: 'Provider Switch: Switch Preset', placeHolder: 'Choose a preset for the Claude Code extension', supportThemeIcons: true });
     if (picked?.action === 'reconnect') await resetApiKey();
     else if (picked) await setProvider(picked.model);
   }
@@ -221,7 +221,7 @@ function createClaudeTarget(services, statusBarItem) {
     const presets = getPresets(true).filter(preset => preset.apiKeyEnv !== 'none');
     const picked = presetId ? { model: presetId } : await vscode.window.showQuickPick(
       presets.map(preset => ({ label: `${endpointIcon(preset.environment.ANTHROPIC_BASE_URL)} ${preset.label}`, description: preset.environment.ANTHROPIC_BASE_URL, model: preset.id })),
-      { title: 'Provider Switch: Reset Preset API Key', placeHolder: 'Choose the preset whose key you want to replace' },
+      { title: 'Provider Switch: Reset Preset API Key', placeHolder: 'Choose the preset whose key you want to replace', supportThemeIcons: true },
     );
     const preset = presets.find(item => item.id === picked?.model);
     if (!preset) return;

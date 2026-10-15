@@ -2,7 +2,7 @@
   "name": "provider-switch",
   "displayName": "Provider Switch",
   "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek and Kimi presets included.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "icon": "images/provider_switch_logo.png",
   "publisher": "jacr",
   "author": {
@@ -133,7 +133,7 @@
             "deepseek": "#a78bfa",
             "custom": null
           },
-          "markdownDescription": "Status bar text and icon colors by preset ID. Use `claude` for the restored Claude Code configuration, `chatgpt` for the restored Codex configuration, and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
+          "markdownDescription": "Status bar text colors by preset ID. Use `claude` for the restored Claude Code configuration, `chatgpt` for the restored Codex configuration, and `custom` for an unmatched provider. Values are six-digit hex colors or `null` to use the VS Code theme color. Changes apply immediately.",
           "patternProperties": {
             "^[a-z][a-z0-9-]*$": {
               "type": ["string", "null"],

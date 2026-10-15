@@ -4,6 +4,10 @@ All notable changes to **Provider Switch** will be documented here.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-15
+
+- Keep provider icons in the dropdown pickers, but remove them from status-bar model names: a snowflake for Claude, OpenAI's blossom for ChatGPT, and a crescent moon for Kimi, whose letter stand-in did not match the other marks. The pickers now render their codicons as icons.
+
 ## [0.6.0] - 2026-10-15
 
 - Check newly entered API keys through the provider's model-list endpoint before saving, with connection feedback and no generated tokens. Reject HTTP 401 responses; offer **Save Without Verification** when the check is inconclusive. Model access and available credit are not checked.
