@@ -2,6 +2,16 @@
 
 All notable changes to **Provider Switch** will be documented here.
 
+## [0.5.0] - 2026-10-15
+
+- Add independent, live visibility settings for Claude and Codex status-bar buttons, and use a shared priority to keep them grouped.
+
+- Add DeepSeek V4 Pro to the Claude picker alongside Flash, reusing the saved DeepSeek key.
+- Add Kimi K3 256K and K3 1M presets for Claude Code and Codex, sharing one saved Kimi endpoint key.
+- Configure Kimi’s Responses endpoint, live web search, supported reasoning levels, and a separate Codex model catalog without replacing existing catalogs.
+- Separate Claude and Codex switching into their own modules, move built-in definitions into provider files, and keep the extension entry point focused on orchestration.
+- Document Kimi membership requirements, Claude onboarding differences, and migration steps. Preserve modified catalogs during restoration.
+
 ## [0.4.0]
 
 - Rename the extension to **Provider Switch**, with ID `jacr.provider-switch`, commands `provider-switch.*`, and settings `providerSwitch.*`.

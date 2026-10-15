@@ -1,6 +1,7 @@
 'use strict';
 
 const os = require('node:os');
+const kimi = require('./providers/kimi');
 const path = require('node:path');
 
 const PROVIDER_DEFAULT = 'deepseek';
@@ -121,7 +122,7 @@ const targetValue = (preset, key, options) => {
     case 'preferred_auth_method': return '"apikey"';
     case 'forced_login_method': return '"api"';
     case 'model_reasoning_effort': return tomlString(preset.reasoningEffort);
-    case 'web_search': return '"disabled"';
+    case 'web_search': return kimi.isEndpoint(preset.baseUrl) ? '"live"' : '"disabled"';
     case 'show_raw_agent_reasoning': return 'true';
     case 'model_catalog_json': return tomlString(options.catalogPath);
     default: return '';
@@ -131,6 +132,7 @@ const targetValue = (preset, key, options) => {
 // Rewrites a config.toml so Codex uses the preset's provider and model, keeping
 // unrelated settings (projects, MCP servers, notify) byte-identical.
 function applyPreset(text, preset, options = {}) {
+  const desktopValue = kimi.isEndpoint(preset.baseUrl) ? JSON.stringify(kimi.reasoningLevels) : DESKTOP_VALUE;
   const lines = String(text || '').split('\n');
   const out = [], report = [];
   const scan = scanner();
@@ -177,7 +179,7 @@ function applyPreset(text, preset, options = {}) {
       if (section === 'desktop' && !desktopDone) {
         // The desktop app reads its effort list from here, and a duplicate
         // [desktop] table would make the file invalid.
-        out.push(`${DESKTOP_KEY} = ${DESKTOP_VALUE}`);
+        out.push(`${DESKTOP_KEY} = ${desktopValue}`);
         desktopDone = true;
       }
       scan.scan(line);
@@ -194,7 +196,7 @@ function applyPreset(text, preset, options = {}) {
       if (section === 'desktop' && key === DESKTOP_KEY) {
         const previous = valueOf(line);
         consume();
-        report.push(`Rewrote ${DESKTOP_KEY} in [desktop]: ${previous} -> ${DESKTOP_VALUE}`);
+        report.push(`Rewrote ${DESKTOP_KEY} in [desktop]: ${previous} -> ${desktopValue}`);
         continue;
       }
       if (key === 'wire_api' && /^["']chat["']/.test(valueOf(line))) {
@@ -248,7 +250,7 @@ function applyPreset(text, preset, options = {}) {
     if (inLeading) dropTrailingBlanks(out);
     out.splice(inLeading ? out.length : insertAt, 0, ...missing.map(key => `${key} = ${targetValue(preset, key, options)}`));
   }
-  if (!desktopDone) out.push('', '[desktop]', `${DESKTOP_KEY} = ${DESKTOP_VALUE}`);
+  if (!desktopDone) out.push('', '[desktop]', `${DESKTOP_KEY} = ${desktopValue}`);
   const provider = [`[model_providers.${preset.provider}]`, `name = ${tomlString(preset.provider)}`,
     `base_url = ${tomlString(preset.baseUrl)}`, `wire_api = ${tomlString(preset.wireApi)}`];
   if (options.apiKey) provider.push(`experimental_bearer_token = ${tomlString(options.apiKey)}`);

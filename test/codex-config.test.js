@@ -121,3 +121,22 @@ test('values are escaped for TOML and detection matches only the configured pres
   assert.equal(configuredPreset(text, resolveCodexPresets().presets), 'deepseek-flash');
   assert.equal(configuredPreset('model_provider = "deepseek"\n', [preset]), 'custom');
 });
+
+test('Kimi uses Responses, live search and its supported efforts; switching back restores DeepSeek behavior', () => {
+  const kimi = resolveCodexPresets().presets.find(preset => preset.id === 'kimi');
+  const first = applyPreset(existing, kimi, options).text;
+  assert.match(first, /^model = "k3-256k"$/m);
+  assert.match(first, /^model_provider = "kimi"$/m);
+  assert.match(first, /^web_search = "live"$/m);
+  assert.match(first, /base_url = "https:\/\/api\.kimi\.ai\/coding\/v1"/);
+  assert.match(first, /enabled-reasoning-efforts = \["low","high","max"\]/);
+  assert.match(first, /experimental_bearer_token = "sk-test-secret"/);
+  assert.ok(!first.includes('env_key ='));
+  assert.match(first, /sandbox = "elevated"/);
+  assert.match(first, /env_vars = \["KEEP"\]/);
+  assert.equal(configuredPreset(first, resolveCodexPresets().presets), 'kimi');
+  assert.equal(applyPreset(first, kimi, options).text, first);
+  const second = apply(first).text;
+  assert.match(second, /^web_search = "disabled"$/m);
+  assert.match(second, /enabled-reasoning-efforts = \["low", "medium", "high", "xhigh", "ultra", "max"\]/);
+});

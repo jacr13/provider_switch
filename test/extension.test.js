@@ -39,8 +39,8 @@ async function setup({ initial = {}, trusted = true, installed = true, codexInst
   const hooks = {};
   const window = {
     createOutputChannel: () => ({ appendLine: line => outputLines.push(line), dispose() {} }),
-    createStatusBarItem: () => {
-      const created = { shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
+    createStatusBarItem: (id, alignment, priority) => {
+      const created = { id, alignment, priority, shown: false, show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
       statusItems.push(created);
       return created;
     },
@@ -187,7 +187,7 @@ test('the status bar names the target and keeps the DeepSeek rate compact', asyn
   // The rate depends on the clock, so only its compact shape is fixed here.
   const suffix = '( \\| (Low|High|Rate unknown))?';
   const whale = '\u{1F433}';
-  assert.match(app.item.text, new RegExp(`^Claude: ${whale} DeepSeek${suffix}$`));
+  assert.match(app.item.text, new RegExp(`^Claude: ${whale} DeepSeek Flash${suffix}$`));
   assert.match(app.codexItem.text, new RegExp(`^Codex: ${whale} DeepSeek Flash${suffix}$`));
   assert.ok(!/(Peak|Off-peak)/.test(app.item.text + app.codexItem.text));
 
@@ -877,4 +877,123 @@ test('Codex state is read from the file and stays independent of the Claude pane
   fs.writeFileSync(path.join(app.home, 'config.toml'), 'model = "gpt-6-astra"\n');
   await app.events.config({ affectsConfiguration: () => true });
   assert.match(app.codexItem.text, /ChatGPT/);
+});
+
+test('Kimi shares one key across Claude and Codex and clears its variables on switching away', async () => {
+  const app = await setup({ initial: { environmentVariables: [{ name: 'KEEP', value: 'yes' }] }, codex: { config: codexFixture } });
+  let prompts = 0;
+  app.window.showInputBox = async () => { prompts++; return 'kimi-test-key'; };
+  await app.switch('kimi');
+  assert.equal(app.env().ANTHROPIC_API_KEY, 'kimi-test-key');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, '');
+  assert.equal(app.env().ANTHROPIC_DEFAULT_FABLE_MODEL, 'k3-256k');
+  assert.equal(app.env().CLAUDE_CODE_MAX_CONTEXT_TOKENS, '262144');
+  assert.match(app.item.text, /Kimi K3 256K/);
+  assert.ok(!app.item.text.includes(' | '));
+  await app.switchCodex('kimi');
+  assert.equal(prompts, 1);
+  assert.match(app.read(), /^model_provider = "kimi"$/m);
+  assert.match(app.read(), /experimental_bearer_token = "kimi-test-key"/);
+  assert.match(app.codexItem.text, /Kimi K3 256K/);
+  const catalog = JSON.parse(fs.readFileSync(path.join(app.home, 'provider-switch-kimi-models.json'), 'utf8'));
+  assert.deepEqual(catalog.models.map(model => model.slug), ['k3', 'k3-256k']);
+  assert.deepEqual(catalog.models[1].supported_reasoning_levels.map(level => level.effort), ['low', 'high', 'max']);
+  await app.switch('kimi-k3');
+  await app.switchCodex('kimi-k3');
+  assert.equal(prompts, 1);
+  assert.equal(app.env().ANTHROPIC_MODEL, 'k3[1m]');
+  assert.match(app.read(), /^model = "k3"$/m);
+  await app.switch('deepseek');
+  assert.equal(app.env().ANTHROPIC_API_KEY, '');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'test-secret');
+  assert.equal(app.env().ANTHROPIC_DEFAULT_FABLE_MODEL, undefined);
+  assert.equal(app.env().CLAUDE_CODE_MAX_CONTEXT_TOKENS, undefined);
+  await app.switchCodex('deepseek-flash');
+  assert.match(app.read(), /^web_search = "disabled"$/m);
+  await app.switch('claude');
+  await app.switchCodex('chatgpt');
+  assert.deepEqual(app.values.environmentVariables, [{ name: 'KEEP', value: 'yes' }]);
+  assert.equal(app.read(), codexFixture);
+  assert.equal(fs.existsSync(path.join(app.home, 'provider-switch-kimi-models.json')), false);
+  assert.equal(fs.existsSync(path.join(app.home, 'models.json')), false);
+});
+
+test('Kimi leaves existing Codex catalogs untouched and restores the original configuration', async () => {
+  const originalCatalog = '{"models":[{"slug":"custom-model"}]}';
+  const app = await setup({ codex: { config: codexFixture, catalog: new Map([['models.json', originalCatalog]]) } });
+  app.window.showInputBox = async () => 'kimi-test-key';
+  await app.switchCodex('kimi');
+  assert.match(app.read(), /model_catalog_json = ".*provider-switch-kimi-models.json"/);
+  assert.equal(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8'), originalCatalog);
+  await app.switchCodex('chatgpt');
+  assert.equal(app.read(), codexFixture);
+  assert.equal(fs.readFileSync(path.join(app.home, 'models.json'), 'utf8'), originalCatalog);
+});
+
+test('Kimi catalog collisions leave user files and configuration untouched', async () => {
+  const app = await setup({ codex: { config: codexFixture, catalog: new Map([['provider-switch-kimi-models.json', 'user content']]) } });
+  app.window.showInputBox = async () => 'kimi-test-key';
+  await app.switchCodex('kimi');
+  assert.equal(app.read(), codexFixture);
+  assert.equal(fs.readFileSync(path.join(app.home, 'provider-switch-kimi-models.json'), 'utf8'), 'user content');
+  assert.equal(app.secret.has(CODEX_BACKUP), false);
+  assert.ok(app.messages.some(message => message.includes('Could not update')));
+  assert.ok(!app.messages.join('').includes('kimi-test-key'));
+});
+
+test('Kimi backup adoption survives reinstall and preserves a subsequently edited catalog', async () => {
+  const app = await setup({ codex: { config: codexFixture } });
+  app.window.showInputBox = async () => 'kimi-test-key';
+  await app.switchCodex('kimi');
+  const catalog = fs.readFileSync(path.join(app.home, 'provider-switch-kimi-models.json'), 'utf8');
+  const reinstalled = await setup({ secret: new Map(), backupHome: app.backupHome,
+    codex: { config: app.read(), catalog: new Map([['provider-switch-kimi-models.json', catalog]]) } });
+  assert.equal(JSON.parse(reinstalled.secret.get(CODEX_BACKUP)).kimiCatalogCreated, true);
+  fs.writeFileSync(path.join(reinstalled.home, 'provider-switch-kimi-models.json'), 'user edited');
+  await reinstalled.switchCodex('chatgpt');
+  assert.equal(reinstalled.read(), codexFixture);
+  assert.equal(fs.readFileSync(path.join(reinstalled.home, 'provider-switch-kimi-models.json'), 'utf8'), 'user edited');
+});
+
+test('Claude DeepSeek Pro uses Pro for every model role and reuses the Flash key', async () => {
+  const app = await setup();
+  app.window.showInputBox = async () => { throw new Error('Must reuse the DeepSeek key'); };
+  await app.switch('deepseek-v4-pro');
+  for (const name of ['ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL']) {
+    assert.equal(app.env()[name], 'deepseek-v4-pro[1m]');
+  }
+  assert.equal(app.env().ANTHROPIC_DEFAULT_HAIKU_MODEL, 'deepseek-v4-pro');
+  assert.equal(app.env().CLAUDE_CODE_SUBAGENT_MODEL, 'deepseek-v4-pro');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'test-secret');
+  assert.match(app.item.text, /DeepSeek V4 Pro/);
+  await app.switch('deepseek');
+  assert.equal(app.env().ANTHROPIC_MODEL, 'deepseek-flash[1m]');
+  assert.match(app.item.text, /DeepSeek Flash/);
+  await app.switch('claude');
+  assert.equal(app.values.environmentVariables, undefined);
+});
+
+test('status buttons share placement and visibility settings update independently without disabling commands', async () => {
+  const settings = { showClaudeStatusBar: false, showCodexStatusBar: false };
+  const app = await setup({ switcherSettings: settings });
+  assert.equal(app.item.shown, false);
+  assert.equal(app.codexItem.shown, false);
+  assert.equal(app.item.alignment, app.codexItem.alignment);
+  assert.equal(app.item.priority, app.codexItem.priority);
+  assert.notEqual(app.item.command, app.codexItem.command);
+  await app.switch('deepseek');
+  assert.equal(app.env().ANTHROPIC_AUTH_TOKEN, 'test-secret');
+  assert.equal(app.item.shown, false);
+  settings.showClaudeStatusBar = true;
+  await app.events.config({ affectsConfiguration: name => name === 'providerSwitch' });
+  assert.equal(app.item.shown, true);
+  assert.equal(app.codexItem.shown, false);
+  settings.showClaudeStatusBar = false;
+  settings.showCodexStatusBar = true;
+  await app.events.config({ affectsConfiguration: name => name === 'providerSwitch' });
+  assert.equal(app.item.shown, false);
+  assert.equal(app.codexItem.shown, true);
+  app.hooks.codexInstalled = false;
+  await app.events.config({ affectsConfiguration: name => name === 'providerSwitch' });
+  assert.equal(app.codexItem.shown, false);
 });

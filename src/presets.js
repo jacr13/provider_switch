@@ -8,23 +8,9 @@ const CLEAR_ENV = {
   CLAUDE_CODE_USE_VERTEX: '0',
   CLAUDE_CODE_USE_FOUNDRY: '0',
 };
-const DEFAULT_PRESETS = {
-  deepseek: {
-    label: 'DeepSeek',
-    apiKeyEnv: 'ANTHROPIC_AUTH_TOKEN',
-    environment: {
-      ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
-      ANTHROPIC_MODEL: 'deepseek-flash[1m]',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'deepseek-flash[1m]',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'deepseek-flash[1m]',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'deepseek-flash',
-      CLAUDE_CODE_SUBAGENT_MODEL: 'deepseek-flash',
-      CLAUDE_CODE_EFFORT_LEVEL: 'max',
-      CLAUDE_CODE_AUTO_COMPACT_WINDOW: '786432',
-      CLAUDE_CODE_AUTO_MODE_SERVER: '0',
-    },
-  },
-};
+const deepseek = require('./providers/deepseek');
+const kimi = require('./providers/kimi');
+const DEFAULT_PRESETS = { ...deepseek.claude, ...kimi.claude };
 // Keep legacy backup ownership fixed. New preset variables are tracked when applied.
 const BASE_MANAGED_KEYS = [
   ...Object.keys(CLEAR_ENV), 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
@@ -37,10 +23,7 @@ const BASE_MANAGED_KEYS = [
 // side; only the stored endpoint key is shared between them.
 const CODEX_BASE_URL = 'https://api.deepseek.com/';
 const CODEX_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'ultra', 'max'];
-const DEFAULT_CODEX_PRESETS = {
-  'deepseek-flash': { label: 'DeepSeek Flash', model: 'deepseek-flash' },
-  'deepseek-v4-pro': { label: 'DeepSeek V4 Pro', model: 'deepseek-v4-pro' },
-};
+const DEFAULT_CODEX_PRESETS = { ...deepseek.codex, ...kimi.codex };
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 // Both targets keep their presets in one setting, one property per target.
@@ -125,11 +108,11 @@ function resolveCodexPresets(config = {}) {
       const defaults = Object.hasOwn(DEFAULT_CODEX_PRESETS, id) ? DEFAULT_CODEX_PRESETS[id] : {};
       const label = override.label === undefined ? defaults.label ?? id : override.label;
       const model = override.model === undefined ? defaults.model ?? id : override.model;
-      const provider = override.provider === undefined ? 'deepseek' : override.provider;
-      const baseUrl = override.baseUrl === undefined ? CODEX_BASE_URL : override.baseUrl;
-      const wireApi = override.wireApi === undefined ? 'responses' : override.wireApi;
-      const reasoningEffort = override.reasoningEffort === undefined ? 'high' : override.reasoningEffort;
-      const apiKey = override.apiKey === undefined ? true : override.apiKey;
+      const provider = override.provider === undefined ? defaults.provider ?? 'deepseek' : override.provider;
+      const baseUrl = override.baseUrl === undefined ? defaults.baseUrl ?? CODEX_BASE_URL : override.baseUrl;
+      const wireApi = override.wireApi === undefined ? defaults.wireApi ?? 'responses' : override.wireApi;
+      const reasoningEffort = override.reasoningEffort === undefined ? defaults.reasoningEffort ?? 'high' : override.reasoningEffort;
+      const apiKey = override.apiKey === undefined ? defaults.apiKey ?? true : override.apiKey;
       if (typeof label !== 'string' || !label.trim()) throw new Error();
       // Model and provider end up inside TOML strings; keep them to safe characters.
       if (typeof model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:[\]-]*$/.test(model)) throw new Error();
@@ -140,6 +123,7 @@ function resolveCodexPresets(config = {}) {
           endpoint.search || endpoint.hash) throw new Error();
       if (!['responses', 'chat'].includes(wireApi) || !CODEX_EFFORTS.includes(reasoningEffort)) throw new Error();
       if (typeof apiKey !== 'boolean') throw new Error();
+      if (kimi.isEndpoint(baseUrl) && (wireApi !== 'responses' || !kimi.reasoningLevels.includes(reasoningEffort))) throw new Error();
       const key = apiKeyName(baseUrl);
       const previous = previousCodexKey(provider, baseUrl);
       presets.push({ id, label: label.trim(), model, provider, baseUrl, wireApi, reasoningEffort, apiKey, key, previousKeys: previous === key ? [] : [previous] });

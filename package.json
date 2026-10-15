@@ -1,8 +1,8 @@
 {
   "name": "provider-switch",
   "displayName": "Provider Switch",
-  "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek included.",
-  "version": "0.4.0",
+  "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek and Kimi presets included.",
+  "version": "0.5.0",
   "icon": "images/provider_switch_logo.png",
   "publisher": "jacr",
   "author": {
@@ -28,6 +28,7 @@
     "claude",
     "codex",
     "deepseek",
+    "kimi",
     "ai",
     "llm",
     "provider",
@@ -72,7 +73,7 @@
           "type": "object",
           "scope": "machine",
           "default": {},
-          "markdownDescription": "Presets for both targets, edited in User Settings JSON. `claude` holds the provider presets offered by the Claude Code status bar button; `codex` holds the model presets offered by the Codex button. Built-in DeepSeek presets merge with your overrides; set one to `null` to hide it. New IDs add presets. One key is stored per endpoint host and reused by every preset that uses it, on both sides. After editing, select the preset again and reload the window.",
+          "markdownDescription": "Presets for both targets, edited in User Settings JSON. `claude` holds the provider presets offered by the Claude Code status bar button; `codex` holds the model presets offered by the Codex button. Built-in DeepSeek and Kimi presets merge with your overrides; set one to `null` to hide it. New IDs add presets. One key is stored per endpoint host and reused by every preset that uses it, on both sides. After editing, select the preset again and reload the window.",
           "properties": {
             "claude": {
               "type": "object",
@@ -141,6 +142,16 @@
           },
           "additionalProperties": false
         },
+        "providerSwitch.showClaudeStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Claude provider button when Claude Code is installed and enabled. Changes apply immediately; commands remain available when hidden."
+        },
+        "providerSwitch.showCodexStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Codex provider button when Codex is installed and enabled. Changes apply immediately; commands remain available when hidden."
+        },
         "providerSwitch.statusBarAlignment": {
           "type": "string",
           "enum": [
@@ -164,7 +175,7 @@
   "scripts": {
     "prepackage": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\"",
     "test": "node --test test/deepseek-rate.test.js test/extension.test.js test/presets.test.js test/codex-config.test.js",
-    "lint": "node --check src/extension.js && node --check src/deepseek-rate.js && node --check src/presets.js && node --check src/codex-config.js",
+    "lint": "node scripts/check-syntax.js",
     "package": "vsce package --out dist/provider-switch.vsix"
   },
   "devDependencies": {

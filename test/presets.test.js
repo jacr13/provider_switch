@@ -25,7 +25,7 @@ test('DeepSeek overrides merge and null removes inherited environment values', (
 });
 
 test('new presets have independent environments and built-ins can be hidden', () => {
-  const { presets, errors } = resolveClaudePresets({ deepseek: null, local: {
+  const { presets, errors } = resolveClaudePresets({ deepseek: null, 'deepseek-v4-pro': null, kimi: null, 'kimi-k3': null, local: {
     label: 'Local', apiKeyEnv: 'none', environment: { ANTHROPIC_BASE_URL: 'http://localhost:8080', ANTHROPIC_MODEL: 'local-model' },
   } });
   assert.deepEqual(errors, []);
@@ -48,7 +48,7 @@ test('invalid definitions are skipped without leaking their contents', () => {
   ];
   for (const definition of invalid) {
     const result = resolveClaudePresets({ deepseek: definition });
-    assert.equal(result.presets.length, 0);
+    assert.equal(result.presets.filter(preset => preset.id === 'deepseek').length, 0);
     assert.equal(result.errors.length, 1);
     assert.ok(!result.errors.join('').includes('test-secret'));
   }
@@ -93,7 +93,7 @@ test('auto-mode server default can be overridden or omitted independently per pr
 test('Codex presets default to the DeepSeek models and can be overridden or hidden', () => {
   const { presets, errors } = resolveCodexPresets();
   assert.deepEqual(errors, []);
-  assert.deepEqual(presets.map(preset => preset.id), ['deepseek-flash', 'deepseek-v4-pro']);
+  assert.deepEqual(presets.map(preset => preset.id), ['deepseek-flash', 'deepseek-v4-pro', 'kimi', 'kimi-k3']);
   assert.deepEqual(presets[0], {
     id: 'deepseek-flash', label: 'DeepSeek Flash', model: 'deepseek-flash', provider: 'deepseek',
     baseUrl: 'https://api.deepseek.com/', wireApi: 'responses', reasoningEffort: 'high', apiKey: true,
@@ -105,7 +105,7 @@ test('Codex presets default to the DeepSeek models and can be overridden or hidd
     local: { label: 'Local', model: 'qwen3', provider: 'local', baseUrl: 'http://localhost:8080/v1', wireApi: 'chat', reasoningEffort: 'low', apiKey: false },
   });
   assert.deepEqual(custom.errors, []);
-  assert.equal(custom.presets.length, 2);
+  assert.equal(custom.presets.length, 4);
   const local = custom.presets.find(preset => preset.id === 'local');
   assert.equal(local.apiKey, false);
   assert.equal(local.wireApi, 'chat');
@@ -141,4 +141,35 @@ test('Codex presets share the endpoint key and adopt the older provider-based na
     .presets.find(preset => preset.id === 'local');
   assert.equal(local.key, 'apiKey:http://localhost:8080');
   assert.deepEqual(local.previousKeys, ['codexApiKey:["local","http://localhost:8080/v1"]']);
+});
+
+test('Kimi defaults use provider-specific endpoints and share a key across targets', () => {
+  const panel = resolveClaudePresets().presets.find(preset => preset.id === 'kimi');
+  const codex = resolveCodexPresets({ kimi: { label: 'My Kimi' } }).presets.find(preset => preset.id === 'kimi');
+  assert.equal(panel.apiKeyEnv, 'ANTHROPIC_API_KEY');
+  assert.equal(panel.environment.ANTHROPIC_BASE_URL, 'https://api.kimi.ai/coding/');
+  assert.equal(panel.environment.ANTHROPIC_DEFAULT_FABLE_MODEL, 'k3-256k');
+  assert.equal(panel.environment.CLAUDE_CODE_MAX_CONTEXT_TOKENS, '262144');
+  assert.equal(codex.provider, 'kimi');
+  assert.equal(codex.baseUrl, 'https://api.kimi.ai/coding/v1');
+  assert.equal(codex.model, 'k3-256k');
+  assert.equal(codex.wireApi, 'responses');
+  assert.equal(panel.key, codex.key);
+  assert.notEqual(panel.key, 'deepseekApiKey');
+  const large = resolveClaudePresets().presets.find(preset => preset.id === 'kimi-k3');
+  assert.equal(large.environment.ANTHROPIC_MODEL, 'k3[1m]');
+  assert.equal(large.environment.CLAUDE_CODE_MAX_CONTEXT_TOKENS, '1048576');
+  assert.equal(resolveCodexPresets().presets.find(preset => preset.id === 'kimi-k3').model, 'k3');
+});
+
+test('Kimi rejects unsupported effort and wire protocols, supports regional endpoints and hiding', () => {
+  for (const override of [{ reasoningEffort: 'xhigh' }, { wireApi: 'chat' }]) {
+    const result = resolveCodexPresets({ kimi: override });
+    assert.equal(result.errors.length, 1);
+    assert.ok(!result.presets.some(preset => preset.id === 'kimi'));
+  }
+  const result = resolveCodexPresets({ kimi: { baseUrl: 'https://api.kimi.com/coding/v1', reasoningEffort: 'max' }, 'kimi-k3': null });
+  assert.deepEqual(result.errors, []);
+  assert.ok(!result.presets.some(preset => preset.id === 'kimi-k3'));
+  assert.equal(result.presets.find(preset => preset.id === 'kimi').provider, 'kimi');
 });
