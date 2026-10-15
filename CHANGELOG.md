@@ -4,6 +4,8 @@ All notable changes to **Provider Switch** will be documented here.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-15
+
 - Check newly entered API keys through the provider's model-list endpoint before saving, with connection feedback and no generated tokens. Reject HTTP 401 responses; offer **Save Without Verification** when the check is inconclusive. Model access and available credit are not checked.
 - Add **Reconnect / Change API Key…** to both provider pickers, reusing the existing shared-key replacement flow across Claude Code and Codex.
 - Show provider-specific icons in preset and API-key pickers, and a Kimi indicator in status-bar buttons.

@@ -2,7 +2,7 @@
   "name": "provider-switch",
   "displayName": "Provider Switch",
   "description": "Switch the Claude Code chat panel and the Codex extension between AI provider and model presets, with DeepSeek and Kimi presets included.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "icon": "images/provider_switch_logo.png",
   "publisher": "jacr",
   "author": {
