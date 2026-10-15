@@ -4,8 +4,11 @@ All notable changes to **Provider Switch** will be documented here.
 
 ## [0.5.0] - 2026-10-15
 
+- Check newly entered API keys through the provider's model-list endpoint before saving, with connection feedback and no generated tokens. Reject HTTP 401 responses; offer **Save Without Verification** when the check is inconclusive. Model access and available credit are not checked.
+- Add **Reconnect / Change API Key…** to both provider pickers, reusing the existing shared-key replacement flow across Claude Code and Codex.
+- Show provider-specific icons in preset and API-key pickers, and a Kimi indicator in status-bar buttons.
+- Use `ANTHROPIC_AUTH_TOKEN` for Kimi in Claude Code so the panel prioritizes it over a saved Claude login. Reselect Kimi after updating, then reload and start a new chat; the saved endpoint key is reused.
 - Add independent, live visibility settings for Claude and Codex status-bar buttons, and use a shared priority to keep them grouped.
-
 - Add DeepSeek V4 Pro to the Claude picker alongside Flash, reusing the saved DeepSeek key.
 - Add Kimi K3 256K and K3 1M presets for Claude Code and Codex, sharing one saved Kimi endpoint key.
 - Configure Kimi’s Responses endpoint, live web search, supported reasoning levels, and a separate Codex model catalog without replacing existing catalogs.
